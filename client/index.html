@@ -1,0 +1,1603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anume Admin Panel</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary-color: #8b5cf6;
+            --accent-color: #06b6d4;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --dark-bg: #0f172a;
+            --dark-surface: #1e293b;
+            --dark-surface-light: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--dark-bg);
+            min-height: 100vh;
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Modern Header */
+        .header {
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color), var(--accent-color));
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header h1 {
+            color: var(--text-primary);
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .header-subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .status-indicator.online {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-indicator.offline {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error-color);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Modern Card Design */
+        .card {
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-color);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-primary);
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .card-icon {
+            width: 24px;
+            height: 24px;
+            color: var(--primary-color);
+        }
+        /* Modern Form Styling */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            background: var(--dark-surface-light);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .form-group input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Modern Button System */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            white-space: nowrap;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background: var(--dark-surface-light);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #d97706;
+        }
+
+        .btn-danger {
+            background: var(--error-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-sm {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        .btn-lg {
+            padding: 16px 24px;
+            font-size: 16px;
+        }
+
+        /* Modern Alert System */
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error-color);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning-color);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .alert-info {
+            background: rgba(6, 182, 212, 0.1);
+            color: var(--accent-color);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+        }
+
+        /* Layout Utilities */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        }
+
+        .grid-3 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* Modern Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: var(--dark-surface-light);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .stat-icon {
+            width: 32px;
+            height: 32px;
+            margin: 0 auto 12px;
+            color: var(--primary-color);
+        }
+
+        /* Modern Navigation */
+        .nav-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            background: var(--dark-surface);
+            padding: 4px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .nav-tab {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .nav-tab.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .nav-tab:hover:not(.active) {
+            background: var(--dark-surface-light);
+            color: var(--text-primary);
+        }
+
+        /* Modern Backup Management */
+        .backup-item {
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            margin-bottom: 16px;
+            border-radius: 12px;
+            background: var(--dark-surface-light);
+            transition: all 0.3s ease;
+        }
+
+        .backup-item:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-1px);
+        }
+
+        .backup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .backup-info {
+            flex: 1;
+        }
+
+        .backup-filename {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            font-size: 16px;
+        }
+
+        .backup-date {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .backup-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .upload-section {
+            background: rgba(99, 102, 241, 0.05);
+            border: 2px dashed var(--primary-color);
+            border-radius: 12px;
+            padding: 32px;
+            text-align: center;
+            margin-bottom: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: var(--primary-dark);
+        }
+
+        .upload-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 16px;
+            color: var(--primary-color);
+        }
+
+        .upload-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .upload-subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        /* Modern File Input */
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 16px;
+        }
+
+        .file-input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-input-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: var(--dark-surface-light);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .file-input-label:hover {
+            background: var(--border-color);
+        }
+
+        /* Modern Modal System */
+        .modal {
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 1200px;
+            max-height: 90vh;
+            box-shadow: var(--shadow-xl);
+            display: flex;
+            flex-direction: column;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+
+        .modal.show .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .modal-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-body {
+            padding: 24px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            padding: 24px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* Modern Log Viewer */
+        .logs-controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: 16px;
+            background: var(--dark-surface-light);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .logs-controls select {
+            min-width: 200px;
+            padding: 8px 12px;
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .logs-search {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .logs-search input {
+            flex: 1;
+            padding: 10px 12px;
+            background: var(--dark-surface-light);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .log-content {
+            flex: 1;
+            background: #0f172a;
+            color: var(--text-primary);
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: 13px;
+            overflow-y: auto;
+            line-height: 1.5;
+            border: 1px solid var(--border-color);
+        }
+
+        .log-info {
+            background: var(--dark-surface-light);
+            color: var(--text-secondary);
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .log-lines {
+            max-height: calc(100% - 60px);
+            overflow-y: auto;
+        }
+
+        .log-line {
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+            word-wrap: break-word;
+            transition: background 0.2s ease;
+        }
+
+        .log-line:hover {
+            background: rgba(51, 65, 85, 0.3);
+        }
+
+        .log-timestamp {
+            color: var(--success-color);
+            margin-right: 12px;
+            font-weight: 500;
+        }
+
+        .log-level {
+            margin-right: 12px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .log-error .log-level {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--error-color);
+        }
+
+        .log-warn .log-level {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning-color);
+        }
+
+        .log-info .log-level {
+            background: rgba(6, 182, 212, 0.2);
+            color: var(--accent-color);
+        }
+
+        .log-debug .log-level {
+            background: rgba(148, 163, 184, 0.2);
+            color: var(--text-muted);
+        }
+
+        .log-message {
+            color: var(--text-primary);
+        }
+
+        .log-search-result {
+            background: rgba(99, 102, 241, 0.2);
+        }
+
+        .log-file {
+            color: var(--secondary-color);
+            margin-right: 12px;
+            font-weight: 600;
+        }
+
+        /* User Management Styles */
+        .user-card {
+            background: var(--dark-surface-light);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .user-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-1px);
+        }
+
+        .user-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        .user-details h4 {
+            color: var(--text-primary);
+            margin: 0 0 4px 0;
+            font-size: 16px;
+        }
+
+        .user-details p {
+            color: var(--text-secondary);
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .user-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .user-status.online {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+        }
+
+        .user-status.offline {
+            background: rgba(148, 163, 184, 0.1);
+            color: var(--text-muted);
+        }
+
+        .user-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        /* Table Styles */
+        .table-container {
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table th {
+            background: var(--dark-surface-light);
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .table td {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .table tr:hover {
+            background: var(--dark-surface-light);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .container {
+                padding: 16px;
+            }
+
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 12px;
+            }
+
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .header-actions {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .grid,
+            .grid-2,
+            .grid-3 {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .modal-content {
+                width: 95%;
+                max-height: 95vh;
+                margin: 2.5vh auto;
+            }
+
+            .modal-header,
+            .modal-body,
+            .modal-footer {
+                padding: 16px;
+            }
+
+            .logs-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .logs-controls select {
+                min-width: auto;
+            }
+
+            .backup-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .backup-actions {
+                width: 100%;
+            }
+
+            .user-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .user-actions {
+                width: 100%;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .table-container {
+                overflow-x: auto;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .card-title {
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Modern Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="header-title">
+                    <i class="fas fa-tv card-icon"></i>
+                    <div>
+                        <h1>Anume Admin Panel</h1>
+                        <p class="header-subtitle">Remote configuration and user management</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <div id="connectionStatus" class="status-indicator offline">
+                        <div class="status-dot"></div>
+                        <span>Connecting...</span>
+                    </div>
+                    <div id="adminProfileSection" class="hidden" style="display: flex; align-items: center; gap: 12px;">
+                        <button class="btn btn-secondary btn-sm" onclick="viewAdminProfile()" title="View Profile">
+                            <i class="fas fa-user-circle"></i>
+                            Profile
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="logout()" title="Logout">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Logout
+                        </button>
+                    </div>
+                    <div id="jsVersion" style="font-size: 12px; color: var(--text-muted);">JS: Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modern Login Section -->
+        <div id="loginSection" class="card">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <i class="fas fa-lock card-icon"></i>
+                    Administrator Login
+                </h2>
+            </div>
+            <div id="loginAlert"></div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">
+                        <i class="fas fa-user" style="margin-right: 8px;"></i>
+                        Username
+                    </label>
+                    <input type="text" id="username" name="username" placeholder="Enter your username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">
+                        <i class="fas fa-key" style="margin-right: 8px;"></i>
+                        Password
+                    </label>
+                    <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Sign In
+                </button>
+            </form>
+        </div>
+
+        <!-- Main Admin Panel -->
+        <div id="adminPanel" class="hidden">
+            <!-- Navigation Tabs -->
+            <div class="nav-tabs">
+                <button class="nav-tab active" onclick="showTab('dashboard')">
+                    <i class="fas fa-tachometer-alt"></i>
+                    Dashboard
+                </button>
+                <button class="nav-tab" onclick="showTab('config')">
+                    <i class="fas fa-cog"></i>
+                    Configuration
+                </button>
+                <button class="nav-tab" onclick="showTab('users')">
+                    <i class="fas fa-users"></i>
+                    User Management
+                </button>
+                <button class="nav-tab" onclick="showTab('online')">
+                    <i class="fas fa-circle" style="color: var(--success-color);"></i>
+                    Online Users
+                </button>
+                <button class="nav-tab" onclick="showTab('admins')">
+                    <i class="fas fa-user-shield"></i>
+                    Admin Accounts
+                </button>
+            </div>
+
+            <!-- Dashboard Tab -->
+            <div id="dashboardTab" class="tab-content">
+                <!-- Welcome Message -->
+                <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; border: none;">
+                    <div style="padding: 24px;">
+                        <h2 style="color: white; margin: 0 0 8px 0; font-size: 24px;">
+                            <i class="fas fa-crown" style="margin-right: 12px;"></i>
+                            Welcome to Anume Admin Panel
+                        </h2>
+                        <p style="margin: 0; opacity: 0.9; font-size: 16px;">
+                            Manage your users, monitor system status, and configure your application settings from this centralized dashboard.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="grid grid-2">
+                    <!-- System Status -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <i class="fas fa-chart-line card-icon"></i>
+                                System Overview
+                            </h2>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <i class="fas fa-users stat-icon"></i>
+                                <div class="stat-value" id="totalUsers">0</div>
+                                <div class="stat-label">Total Users</div>
+                            </div>
+                            <div class="stat-card">
+                                <i class="fas fa-circle stat-icon" style="color: var(--success-color);"></i>
+                                <div class="stat-value" id="onlineUsers">0</div>
+                                <div class="stat-label">Online Now</div>
+                            </div>
+                            <div class="stat-card">
+                                <i class="fas fa-user-shield stat-icon"></i>
+                                <div class="stat-value" id="adminCount">1</div>
+                                <div class="stat-label">Admin Accounts</div>
+                            </div>
+                            <div class="stat-card">
+                                <i class="fas fa-server stat-icon"></i>
+                                <div class="stat-value" id="serverStatus">Online</div>
+                                <div class="stat-label">Server Status</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <i class="fas fa-bolt card-icon"></i>
+                                Quick Actions
+                            </h2>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <button class="btn btn-primary" onclick="window.testConnection()" id="testConnectionBtn">
+                                <i class="fas fa-wifi"></i>
+                                Test Connection
+                            </button>
+                            <button class="btn btn-secondary" onclick="window.viewLogs()" id="viewLogsBtn">
+                                <i class="fas fa-file-alt"></i>
+                                View System Logs
+                            </button>
+                            <button class="btn btn-warning" onclick="window.createBackup()" id="createBackupBtn">
+                                <i class="fas fa-download"></i>
+                                Create Backup
+                            </button>
+                            <button class="btn btn-danger" onclick="window.logout()" id="logoutBtn">
+                                <i class="fas fa-sign-out-alt"></i>
+                                Logout
+                            </button>
+
+                            <!-- Debug button -->
+                            <button class="btn btn-info btn-sm" onclick="console.log('Functions check:', {testConnection: typeof window.testConnection, viewLogs: typeof window.viewLogs, createBackup: typeof window.createBackup, logout: typeof window.logout}); alert('Check console for function availability');" style="font-size: 12px; margin-top: 8px;">
+                                🔧 Debug Functions
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration Tab -->
+            <div id="configTab" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-cog card-icon"></i>
+                            Configuration Management
+                        </h2>
+                    </div>
+                    <div id="configAlert"></div>
+                    <form id="configForm">
+                        <div class="form-group">
+                            <label for="apiUrl">
+                                <i class="fas fa-link" style="margin-right: 8px;"></i>
+                                API URL
+                            </label>
+                            <input type="url" id="apiUrl" name="apiUrl" placeholder="https://example.com/api" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="activationApiUrl">
+                                <i class="fas fa-key" style="margin-right: 8px;"></i>
+                                Activation API URL
+                            </label>
+                            <input type="url" id="activationApiUrl" name="activationApiUrl" placeholder="https://example.com/activation" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="isActive">
+                                <i class="fas fa-toggle-on" style="margin-right: 8px;"></i>
+                                Status
+                            </label>
+                            <select id="isActive" name="isActive">
+                                <option value="true">Active</option>
+                                <option value="false">Inactive</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                Update Configuration
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="loadConfig()">
+                                <i class="fas fa-sync"></i>
+                                Reload
+                            </button>
+                            <button type="button" class="btn btn-warning" onclick="createBackup()">
+                                <i class="fas fa-download"></i>
+                                Create Backup
+                            </button>
+                            <button type="button" class="btn btn-danger" onclick="resetConfig()">
+                                <i class="fas fa-undo"></i>
+                                Reset to Default
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- User Management Tab -->
+            <div id="usersTab" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-users card-icon"></i>
+                            User Management
+                        </h2>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-primary btn-sm" onclick="refreshUserList()">
+                                <i class="fas fa-sync"></i>
+                                Refresh
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="exportUserList()">
+                                <i class="fas fa-download"></i>
+                                Export
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- User Filters -->
+                    <div style="padding: 16px; background: var(--dark-surface-light); border-radius: 8px; margin-bottom: 16px;">
+                        <div class="grid grid-3" style="gap: 16px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="userSearch">Search Users</label>
+                                <input type="text" id="userSearch" placeholder="Search by username..." onkeyup="filterUsers()">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="statusFilter">Status Filter</label>
+                                <select id="statusFilter" onchange="filterUsers()">
+                                    <option value="">All Status</option>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                    <option value="expired">Expired</option>
+                                    <option value="suspended">Suspended</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="subscriptionFilter">Subscription Filter</label>
+                                <select id="subscriptionFilter" onchange="filterUsers()">
+                                    <option value="">All Subscriptions</option>
+                                    <option value="basic">Basic</option>
+                                    <option value="premium">Premium</option>
+                                    <option value="trial">Trial</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px; display: flex; gap: 8px;">
+                            <button class="btn btn-secondary btn-sm" onclick="clearFilters()">
+                                <i class="fas fa-times"></i>
+                                Clear Filters
+                            </button>
+                            <span id="userCount" style="color: var(--text-secondary); font-size: 14px; line-height: 32px;"></span>
+                        </div>
+                    </div>
+
+                    <div id="userListContainer">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>
+                                            <input type="checkbox" id="selectAllUsers" onchange="toggleSelectAll()">
+                                        </th>
+                                        <th onclick="sortUsers('username')" style="cursor: pointer;">
+                                            User <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th onclick="sortUsers('server_url')" style="cursor: pointer;">
+                                            Server <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th onclick="sortUsers('subscription_status')" style="cursor: pointer;">
+                                            Status <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th onclick="sortUsers('last_login')" style="cursor: pointer;">
+                                            Last Login <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th onclick="sortUsers('subscription_type')" style="cursor: pointer;">
+                                            Subscription <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="userTableBody">
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; color: var(--text-muted);">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                            Loading users...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div id="userPagination" style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding: 16px;">
+                            <div>
+                                <span id="userPaginationInfo" style="color: var(--text-secondary); font-size: 14px;"></span>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-secondary btn-sm" id="prevPageBtn" onclick="changePage(-1)" disabled>
+                                    <i class="fas fa-chevron-left"></i>
+                                    Previous
+                                </button>
+                                <button class="btn btn-secondary btn-sm" id="nextPageBtn" onclick="changePage(1)" disabled>
+                                    Next
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Bulk Actions -->
+                        <div id="bulkActions" style="display: none; padding: 16px; background: var(--dark-surface-light); border-radius: 8px; margin-top: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span id="selectedCount" style="color: var(--text-primary); font-weight: 500;"></span>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn btn-warning btn-sm" onclick="bulkActivateUsers()">
+                                        <i class="fas fa-check"></i>
+                                        Activate Selected
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" onclick="bulkDeactivateUsers()">
+                                        <i class="fas fa-ban"></i>
+                                        Deactivate Selected
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" onclick="bulkDisconnectUsers()">
+                                        <i class="fas fa-sign-out-alt"></i>
+                                        Disconnect Selected
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Online Users Tab -->
+            <div id="onlineTab" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-circle card-icon" style="color: var(--success-color);"></i>
+                            Online Users
+                        </h2>
+                        <div style="display: flex; gap: 8px;">
+                            <span class="status-indicator online">
+                                <div class="status-dot"></div>
+                                <span id="onlineCount">0</span> online
+                            </span>
+                            <button class="btn btn-secondary btn-sm" onclick="refreshOnlineUsers()">
+                                <i class="fas fa-sync"></i>
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div id="onlineUsersContainer">
+                        <div id="onlineUsersList">
+                            <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 16px;"></i>
+                                <p>Loading online users...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Accounts Tab -->
+            <div id="adminsTab" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-user-shield card-icon"></i>
+                            Admin Account Management
+                        </h2>
+                        <button class="btn btn-primary btn-sm" onclick="showAddAdminModal()">
+                            <i class="fas fa-plus"></i>
+                            Add Admin
+                        </button>
+                    </div>
+                    <div id="adminListContainer">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Role</th>
+                                        <th>Created</th>
+                                        <th>Last Login</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adminTableBody">
+                                    <tr>
+                                        <td>admin</td>
+                                        <td><span class="user-status online">Super Admin</span></td>
+                                        <td>System Default</td>
+                                        <td>Current Session</td>
+                                        <td>
+                                            <button class="btn btn-warning btn-sm" onclick="changeAdminPassword('admin')">
+                                                <i class="fas fa-key"></i>
+                                                Change Password
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backup Management -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-database card-icon"></i>
+                        Backup Management
+                    </h2>
+                </div>
+                <div id="backupAlert" class="alert" style="display: none;"></div>
+
+                <!-- Upload Backup Section -->
+                <div class="upload-section">
+                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                    <h3 class="upload-title">Upload Backup File</h3>
+                    <p class="upload-subtitle">Select a JSON backup file to restore configuration</p>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="backupFileInput" accept=".json" class="file-input">
+                        <label for="backupFileInput" class="file-input-label">
+                            <i class="fas fa-file-upload"></i>
+                            Choose File
+                        </label>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="uploadBackup()">
+                        <i class="fas fa-upload"></i>
+                        Upload & Restore
+                    </button>
+                </div>
+
+                <!-- Available Backups Section -->
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="color: var(--text-primary); margin: 0;">
+                            <i class="fas fa-archive" style="margin-right: 8px;"></i>
+                            Available Backups
+                        </h3>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="loadBackups()">
+                            <i class="fas fa-sync"></i>
+                            Refresh List
+                        </button>
+                    </div>
+                    <div id="backupsList">
+                        <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            Loading backups...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Admin Modal -->
+    <div id="addAdminModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-user-plus"></i>
+                    Add New Admin
+                </h2>
+                <button class="modal-close" onclick="closeModal('addAdminModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="addAdminForm">
+                    <div class="form-group">
+                        <label for="newAdminUsername">
+                            <i class="fas fa-user" style="margin-right: 8px;"></i>
+                            Username
+                        </label>
+                        <input type="text" id="newAdminUsername" name="username" placeholder="Enter username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newAdminPassword">
+                            <i class="fas fa-lock" style="margin-right: 8px;"></i>
+                            Password
+                        </label>
+                        <input type="password" id="newAdminPassword" name="password" placeholder="Enter password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newAdminRole">
+                            <i class="fas fa-shield-alt" style="margin-right: 8px;"></i>
+                            Role
+                        </label>
+                        <select id="newAdminRole" name="role">
+                            <option value="admin">Admin</option>
+                            <option value="super_admin">Super Admin</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('addAdminModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createAdmin()">
+                    <i class="fas fa-plus"></i>
+                    Create Admin
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="changePasswordModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-key"></i>
+                    Change Password
+                </h2>
+                <button class="modal-close" onclick="closeModal('changePasswordModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="changePasswordForm">
+                    <div class="form-group">
+                        <label for="currentPassword">Current Password</label>
+                        <input type="password" id="currentPassword" name="currentPassword" placeholder="Enter current password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newPassword">New Password</label>
+                        <input type="password" id="newPassword" name="newPassword" placeholder="Enter new password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password</label>
+                        <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm new password" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('changePasswordModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="updatePassword()">
+                    <i class="fas fa-save"></i>
+                    Update Password
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Details Modal -->
+    <div id="userDetailsModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-user"></i>
+                    User Details
+                </h2>
+                <button class="modal-close" onclick="closeModal('userDetailsModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="userDetailsContent">
+                    <!-- User details will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('userDetailsModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Logs Modal -->
+    <div id="logsModal" class="modal">
+        <div class="modal-content" style="max-width: 1000px; max-height: 80vh;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-file-alt"></i>
+                    System Logs
+                </h2>
+                <button class="modal-close" onclick="closeModal('logsModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                <div id="logsContent">
+                    <!-- Logs content will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js?v=5.0&t=1752865800"></script>
+</body>
+</html>

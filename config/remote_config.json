@@ -1,0 +1,14 @@
+{
+  "apiUrl": "http://nuconteaza.mmager.ro:8080",
+  "username": "test",
+  "password": "test",
+  "activationApiUrl": "https://www.xtream.ro/appactivation",
+  "lastUpdated": "2025-07-19T00:00:00.000Z",
+  "isActive": true,
+  "additionalSettings": {
+    "timeout": 30000,
+    "retryAttempts": 3,
+    "enableLogging": true
+  },
+  "version": "1.0.0"
+}
