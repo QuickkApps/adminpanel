@@ -60,6 +60,9 @@ window.showTab = function(tabName) {
         case 'dashboard':
             updateDashboardStats();
             break;
+        case 'backups':
+            loadBackups();
+            break;
     }
 };
 
@@ -191,30 +194,41 @@ window.refreshOnlineUsers = async function() {
     try {
         // Try WebSocket first for real-time data
         if (window.adminPanel && window.adminPanel.socket && window.adminPanel.socket.connected) {
+            console.log('📡 Using WebSocket to get online users...');
             window.adminPanel.socket.emit('get-online-users', (response) => {
-                if (response.success) {
+                console.log('📡 WebSocket response:', response);
+                if (response && response.success) {
                     displayOnlineUsers(response.users);
                     updateOnlineCount(response.users.length);
                 } else {
-                    throw new Error(response.message);
+                    console.error('WebSocket error:', response?.message || 'Unknown error');
+                    throw new Error(response?.message || 'Failed to get online users via WebSocket');
                 }
             });
         } else {
-            // Fallback to REST API
+            // Fallback to REST API with proper authentication
+            console.log('📡 Using REST API to get online users...');
             const response = await apiCall('/api/users/online');
             displayOnlineUsers(response.data);
             updateOnlineCount(response.count);
         }
     } catch (error) {
-        console.error('Error loading online users:', error);
+        console.error('❌ Error loading online users:', error);
         if (container) {
             container.innerHTML = `
                 <div style="text-align: center; padding: 40px; color: var(--error-color);">
                     <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 16px;"></i>
                     <p>Error loading online users: ${error.message}</p>
+                    <button class="btn btn-primary btn-sm" onclick="refreshOnlineUsers()" style="margin-top: 16px;">
+                        <i class="fas fa-retry"></i>
+                        Try Again
+                    </button>
                 </div>
             `;
         }
+
+        // Also update the count to 0 on error
+        updateOnlineCount(0);
     }
 };
 
@@ -263,16 +277,20 @@ window.updateDashboardStats = async function() {
         const adminStatsResponse = await apiCall('/api/admins/stats');
         const adminStats = adminStatsResponse.data;
 
+        // Load chat stats for unreplied messages
+        const chatStatsResponse = await apiCall('/api/chat/admin/stats');
+        const chatStats = chatStatsResponse.stats;
+
         // Update dashboard
         document.getElementById('totalUsers').textContent = userStats.total || '0';
-        document.getElementById('onlineUsers').textContent = userStats.online || '0';
+        document.getElementById('unrepliedMessages').textContent = chatStats.unreadMessages || '0';
         document.getElementById('adminCount').textContent = adminStats.active || '0';
         document.getElementById('serverStatus').textContent = 'Online';
     } catch (error) {
         console.error('Error updating dashboard stats:', error);
         // Set default values on error
         document.getElementById('totalUsers').textContent = '0';
-        document.getElementById('onlineUsers').textContent = '0';
+        document.getElementById('unrepliedMessages').textContent = '0';
         document.getElementById('adminCount').textContent = '1';
         document.getElementById('serverStatus').textContent = 'Error';
     }
@@ -356,6 +374,106 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize default tab
     showTab('dashboard');
+
+    // Initialize chat after a delay to ensure it's ready
+    setTimeout(() => {
+        if (typeof initializeChat === 'function') {
+            console.log('🔄 Auto-initializing chat...');
+
+            // Check if admin token is available
+            const token = localStorage.getItem('adminToken');
+            if (token) {
+                console.log('✅ Admin token available, initializing chat');
+                initializeChat();
+            } else {
+                console.log('⏳ Admin token not yet available, will retry...');
+                // Retry every 2 seconds until token is available
+                const tokenCheckInterval = setInterval(() => {
+                    const token = localStorage.getItem('adminToken');
+                    if (token) {
+                        console.log('✅ Admin token now available, initializing chat');
+                        initializeChat();
+                        clearInterval(tokenCheckInterval);
+                    }
+                }, 2000);
+
+                // Stop trying after 30 seconds
+                setTimeout(() => {
+                    clearInterval(tokenCheckInterval);
+                    console.log('⏰ Stopped waiting for admin token');
+                }, 30000);
+            }
+        }
+
+        // Add a manual test function to debug API calls
+        window.testConversationsAPI = async function() {
+            try {
+                const token = localStorage.getItem('adminToken');
+                console.log('🧪 Testing conversations API...');
+                console.log('🧪 Token:', token ? 'Present' : 'Missing');
+
+                const response = await fetch('/api/chat/admin/conversations?status=&_t=' + Date.now(), {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+
+                console.log('🧪 Response status:', response.status);
+                console.log('🧪 Response headers:', response.headers);
+
+                const data = await response.json();
+                console.log('🧪 Response data:', data);
+
+                if (data.conversations) {
+                    console.log('🧪 Number of conversations:', data.conversations.length);
+                    data.conversations.forEach((conv, i) => {
+                        console.log(`🧪 Conversation ${i + 1}:`, conv);
+                    });
+                }
+
+                return data;
+            } catch (error) {
+                console.error('🧪 API test error:', error);
+                return error;
+            }
+        };
+
+        console.log('🧪 Test function added. Call window.testConversationsAPI() in console to test.');
+
+        // Force load conversations on page load (aggressive approach)
+        window.forceLoadConversations = function() {
+            const token = localStorage.getItem('adminToken');
+            if (token) {
+                console.log('🚀 Force loading conversations on page load...');
+                loadConversations('');
+            }
+        };
+
+        // Try to load conversations every 5 seconds until successful
+        const pageLoadInterval = setInterval(() => {
+            const token = localStorage.getItem('adminToken');
+            if (token) {
+                console.log('🔄 Attempting to load conversations...');
+                loadConversations('');
+
+                // Check if loaded successfully after 2 seconds
+                setTimeout(() => {
+                    const conversationsList = document.getElementById('conversationsList');
+                    if (conversationsList && !conversationsList.innerHTML.includes('Loading conversations')) {
+                        console.log('✅ Conversations loaded successfully, stopping interval');
+                        clearInterval(pageLoadInterval);
+                    }
+                }, 2000);
+            }
+        }, 5000);
+
+        // Stop trying after 60 seconds
+        setTimeout(() => {
+            clearInterval(pageLoadInterval);
+            console.log('⏰ Stopped page load conversation attempts');
+        }, 60000);
+    }, 2000);
 
     // Add smooth scrolling to all anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -560,9 +678,44 @@ function updateOnlineCount(count) {
         onlineCountEl.textContent = count;
     }
 
-    const onlineUsersEl = document.getElementById('onlineUsers');
-    if (onlineUsersEl) {
-        onlineUsersEl.textContent = count;
+    // Note: No longer updating dashboard onlineUsers stat since it's been replaced with unrepliedMessages
+}
+
+// Update unreplied messages count in dashboard
+async function updateUnrepliedMessagesCount() {
+    try {
+        const chatStatsResponse = await apiCall('/api/chat/admin/stats');
+        const chatStats = chatStatsResponse.stats;
+
+        const unrepliedElement = document.getElementById('unrepliedMessages');
+        if (unrepliedElement) {
+            unrepliedElement.textContent = chatStats.unreadMessages || '0';
+        }
+    } catch (error) {
+        console.error('Error updating unreplied messages count:', error);
+    }
+}
+
+// Navigate to different sections from dashboard stat cards
+window.navigateToSection = function(section) {
+    console.log('🔄 Navigating to section:', section);
+
+    switch(section) {
+        case 'users':
+            showTab('users');
+            break;
+        case 'chat':
+            showTab('chat');
+            break;
+        case 'admins':
+            showTab('admins');
+            break;
+        case 'config':
+            showTab('config');
+            break;
+        default:
+            console.warn('Unknown section:', section);
+            break;
     }
 }
 
@@ -1353,11 +1506,16 @@ class AdminPanel {
                     userType: 'admin'
                 });
                 this.socket.emit('subscribe-config-updates');
+
+                // Start periodic activity updates to keep admin session alive
+                this.startAdminActivityUpdates();
             }
         });
 
         this.socket.on('disconnect', () => {
             this.updateConnectionStatus(false);
+            // Stop activity updates when disconnected
+            this.stopAdminActivityUpdates();
         });
 
         this.socket.on('authenticated', (data) => {
@@ -1374,32 +1532,33 @@ class AdminPanel {
             this.loadStatus();
         });
 
+        // Handle admin activity acknowledgments
+        this.socket.on('admin-activity-acknowledged', (data) => {
+            console.log('✅ Admin activity acknowledged by server:', data);
+        });
+
         this.socket.on('app-status-update', (status) => {
             this.updateAppStatus(status);
         });
 
         // Real-time user connection events
         this.socket.on('user-connected', (data) => {
-            console.log('User connected:', data);
+            console.log('👤 User connected:', data);
             showAlert(`User ${data.username} connected from ${data.serverUrl}`, 'info');
 
-            // Refresh online users if on that tab
-            if (currentTab === 'online') {
-                refreshOnlineUsers();
-            }
+            // Always refresh online users when someone connects
+            refreshOnlineUsers();
 
             // Update dashboard stats
             updateDashboardStats();
         });
 
         this.socket.on('user-disconnected', (data) => {
-            console.log('User disconnected:', data);
+            console.log('👤 User disconnected:', data);
             showAlert(`User ${data.username} disconnected`, 'info');
 
-            // Refresh online users if on that tab
-            if (currentTab === 'online') {
-                refreshOnlineUsers();
-            }
+            // Always refresh online users when someone disconnects
+            refreshOnlineUsers();
 
             // Update dashboard stats
             updateDashboardStats();
@@ -1418,6 +1577,18 @@ class AdminPanel {
 
         this.socket.on('user-disconnect-error', (data) => {
             showAlert(`Failed to disconnect user: ${data.message}`, 'error');
+        });
+
+        // Handle ping/pong for heartbeat
+        this.socket.on('ping', (data) => {
+            console.log('🏓 Admin panel received ping from server:', data);
+            // Respond immediately with pong
+            this.socket.emit('pong', {
+                timestamp: new Date().toISOString(),
+                received_at: data?.timestamp,
+                client_type: 'admin'
+            });
+            console.log('🏓 Admin panel sent pong response');
         });
     }
 
@@ -1970,6 +2141,9 @@ class AdminPanel {
 
     async logout() {
         try {
+            // Stop activity updates
+            this.stopAdminActivityUpdates();
+
             // Call logout API to revoke session
             const sessionToken = localStorage.getItem('sessionToken');
             if (sessionToken) {
@@ -1991,6 +2165,32 @@ class AdminPanel {
             this.token = null;
             this.showLogin();
             this.showAlert('loginAlert', 'Logged out successfully', 'success');
+        }
+    }
+
+    startAdminActivityUpdates() {
+        // Stop any existing interval
+        this.stopAdminActivityUpdates();
+
+        // Send activity update every 2 minutes to keep session alive
+        this.activityInterval = setInterval(() => {
+            if (this.socket && this.socket.connected && this.token) {
+                this.socket.emit('admin-activity', {
+                    timestamp: new Date().toISOString(),
+                    action: 'heartbeat'
+                });
+                console.log('💓 Sent admin activity heartbeat');
+            }
+        }, 120000); // 2 minutes
+
+        console.log('✅ Started admin activity updates');
+    }
+
+    stopAdminActivityUpdates() {
+        if (this.activityInterval) {
+            clearInterval(this.activityInterval);
+            this.activityInterval = null;
+            console.log('🛑 Stopped admin activity updates');
         }
     }
 
@@ -2783,3 +2983,880 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('logout available:', typeof window.logout);
     console.log('deleteAdmin available:', typeof window.deleteAdmin);
 });
+
+// ===== CHAT FUNCTIONALITY =====
+
+// Global chat variables
+let currentConversations = [];
+let selectedConversationId = null;
+let currentMessages = [];
+let typingTimeout = null;
+let chatSocket = null;
+
+// Make variables globally accessible for debugging
+window.currentConversations = currentConversations;
+window.selectedConversationId = selectedConversationId;
+window.selectConversation = selectConversation;
+
+// Initialize chat when tab is shown
+function initializeChat() {
+    console.log('🔄 Initializing chat...');
+    console.log('🔄 Function called from:', new Error().stack);
+
+    // Check if we have authentication token
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
+        console.error('❌ No admin token found, cannot initialize chat');
+        return;
+    }
+    console.log('✅ Admin token found');
+
+    // Connect to WebSocket if not already connected
+    if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+        console.log('🔌 Connecting to chat socket...');
+        connectChatSocket();
+    } else {
+        console.log('✅ Chat socket already connected');
+    }
+
+    // Load conversations immediately and set up auto-refresh
+    const loadConversationsNow = () => {
+        const statusFilter = document.getElementById('chatStatusFilter');
+        const currentStatus = statusFilter ? statusFilter.value : '';
+        console.log('📋 Status filter element:', statusFilter);
+        console.log('📋 Current status value:', currentStatus);
+        console.log('📋 Loading conversations with status:', currentStatus);
+        loadConversations(currentStatus);
+    };
+
+    // Load immediately
+    loadConversationsNow();
+
+    // Set up auto-refresh until conversations are loaded
+    const autoRefreshInterval = setInterval(() => {
+        const conversationsList = document.getElementById('conversationsList');
+        if (conversationsList && conversationsList.innerHTML.includes('Loading conversations')) {
+            console.log('🔄 Auto-refreshing conversations...');
+            loadConversationsNow();
+        } else {
+            console.log('✅ Conversations loaded, stopping auto-refresh');
+            clearInterval(autoRefreshInterval);
+        }
+    }, 3000);
+
+    // Stop auto-refresh after 30 seconds
+    setTimeout(() => {
+        clearInterval(autoRefreshInterval);
+        console.log('⏰ Stopped auto-refresh after 30 seconds');
+    }, 30000);
+
+    // Also load after a short delay as fallback
+    setTimeout(() => {
+        loadConversationsNow();
+    }, 100);
+
+    // Load chat statistics
+    loadChatStats();
+}
+
+// Track if chat socket listeners are already set up to prevent duplicates
+let chatSocketListenersSetup = false;
+
+// Connect to WebSocket for real-time chat
+function connectChatSocket() {
+    const socket = window.adminPanel?.socket;
+    if (!socket) {
+        console.warn('Main socket not available, cannot initialize chat socket');
+        // Retry after a short delay
+        setTimeout(connectChatSocket, 1000);
+        return;
+    }
+
+    chatSocket = socket; // Use the existing socket connection
+
+    // Remove existing chat event listeners to prevent duplicates
+    if (chatSocketListenersSetup) {
+        console.log('🔄 Removing existing chat event listeners to prevent duplicates...');
+        socket.off('new-user-message');
+        socket.off('new-chat-message');
+        socket.off('user-typing');
+        socket.off('messages-read');
+        // Note: We don't remove 'connect', 'disconnect', or 'ping' as they're handled by the main socket
+    }
+
+    // Add connection monitoring (only if not already set up)
+    if (!chatSocketListenersSetup) {
+        socket.on('connect', () => {
+            console.log('✅ Chat socket connected');
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('❌ Chat socket disconnected:', reason);
+            // Auto-reconnect after a delay
+            setTimeout(() => {
+                if (window.adminPanel?.socket) {
+                    connectChatSocket();
+                }
+            }, 2000);
+        });
+
+        // Handle ping/pong for heartbeat
+        socket.on('ping', (data) => {
+            console.log('🏓 Chat socket received ping from server:', data);
+            // Respond immediately with pong
+            socket.emit('pong', {
+                timestamp: new Date().toISOString(),
+                received_at: data?.timestamp,
+                client_type: 'admin_chat'
+            });
+            console.log('🏓 Chat socket sent pong response');
+        });
+    }
+
+    // Join admin room for chat notifications
+    socket.emit('authenticate', {
+        token: localStorage.getItem('adminToken'),
+        userType: 'admin'
+    });
+
+    // Listen for new user messages
+    socket.on('new-user-message', (data) => {
+        console.log('📨 New user message received:', data);
+        handleNewUserMessage(data);
+    });
+
+    // Listen for new chat messages in current conversation
+    socket.on('new-chat-message', (data) => {
+        console.log('💬 New chat message:', data);
+
+        // Only add message to chat if it's not from the current admin
+        // (to prevent duplicates since admin messages are added immediately when sent)
+        if (data.conversationId === selectedConversationId) {
+            const currentAdminId = getCurrentAdminId();
+            const isFromCurrentAdmin = data.senderType === 'admin' && data.senderId === currentAdminId;
+
+            if (!isFromCurrentAdmin) {
+                addMessageToChat(data);
+            } else {
+                console.log('🔄 Skipping duplicate message from current admin');
+            }
+        }
+        updateConversationInList(data.conversationId);
+    });
+
+    // Listen for typing indicators
+    socket.on('user-typing', (data) => {
+        if (data.conversationId === selectedConversationId && data.senderType === 'user') {
+            showTypingIndicator(data.isTyping, data.senderName);
+        }
+    });
+
+    // Listen for messages marked as read
+    socket.on('messages-read', (data) => {
+        if (data.conversationId === selectedConversationId) {
+            markMessagesAsRead(data.messageIds);
+        }
+    });
+
+    // Mark that chat socket listeners are now set up
+    chatSocketListenersSetup = true;
+    console.log('✅ Chat socket connected and listeners set up');
+}
+
+// Load conversations list
+async function loadConversations(status = 'open') {
+    try {
+        console.log(`🔄 Loading conversations with status: ${status}`);
+
+        const token = localStorage.getItem('adminToken');
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        const response = await fetch(`/api/chat/admin/conversations?status=${status}&_t=${Date.now()}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Cache-Control': 'no-cache'
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to load conversations: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('✅ Conversations loaded:', data);
+        console.log('✅ Number of conversations:', data.conversations ? data.conversations.length : 0);
+
+        currentConversations = data.conversations || [];
+        window.currentConversations = currentConversations; // Update global reference
+        console.log('✅ Current conversations array:', currentConversations);
+        renderConversationsList();
+
+        // Update chat statistics
+        updateChatStatsFromConversations();
+
+        // Auto-select first conversation if none is selected and conversations exist
+        if (!selectedConversationId && currentConversations.length > 0) {
+            const firstConversation = currentConversations[0]; // Just select the first conversation
+            if (firstConversation) {
+                console.log('🎯 Auto-selecting first conversation:', firstConversation.id);
+                selectConversation(firstConversation.id);
+            }
+        }
+
+    } catch (error) {
+        console.error('❌ Error loading conversations:', error);
+        showChatError('Failed to load conversations: ' + error.message);
+    }
+}
+
+// Render conversations list in sidebar
+function renderConversationsList() {
+    console.log('🎨 Rendering conversations list...');
+    console.log('🎨 Current conversations:', currentConversations);
+    console.log('🎨 Number of conversations:', currentConversations.length);
+
+    const container = document.getElementById('conversationsList');
+    console.log('🎨 Container element:', container);
+
+    // Show all conversations (removed filtering to ensure all conversations are visible)
+    const filteredConversations = currentConversations;
+
+    if (filteredConversations.length === 0) {
+        console.log('🎨 No conversations to display');
+        container.innerHTML = `
+            <div class="loading-state">
+                <i class="fas fa-inbox"></i>
+                No conversations found
+            </div>
+        `;
+        return;
+    }
+
+    const conversationsHTML = filteredConversations.map(conv => {
+        const lastMessageDate = conv.lastMessageAt ? new Date(conv.lastMessageAt) : new Date();
+        const timeAgo = formatTimeAgo(lastMessageDate);
+        const unreadCount = conv.unreadCount || 0;
+
+        return `
+            <div class="conversation-item ${conv.id === selectedConversationId ? 'active' : ''} ${unreadCount > 0 ? 'unread' : ''}"
+                 onclick="selectConversation(${conv.id})">
+                <div class="conversation-header">
+                    <span class="conversation-user">${conv.user.username}</span>
+                    <span class="conversation-time">${timeAgo}</span>
+                </div>
+                <div class="conversation-preview">
+                    ${conv.lastMessage ? conv.lastMessage.message : 'No messages yet'}
+                </div>
+                <div class="conversation-meta">
+                    <span class="conversation-status ${conv.status}">${conv.status}</span>
+                    ${unreadCount > 0 ? `<span class="unread-count">${unreadCount}</span>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = conversationsHTML;
+}
+
+// Select a conversation
+async function selectConversation(conversationId) {
+    selectedConversationId = conversationId;
+    window.selectedConversationId = selectedConversationId; // Update global reference
+
+    // Update UI
+    renderConversationsList(); // Re-render to show active state
+
+    // Show chat area
+    document.getElementById('chatWelcome').classList.add('hidden');
+    document.getElementById('chatArea').classList.remove('hidden');
+
+    // Load conversation details
+    const conversation = currentConversations.find(c => c.id === conversationId);
+    if (conversation) {
+        updateChatHeader(conversation);
+    }
+
+    // Join conversation room via WebSocket
+    if (chatSocket) {
+        chatSocket.emit('join-chat', {
+            conversationId: conversationId,
+            userType: 'admin',
+            userId: getCurrentAdminId()
+        });
+    }
+
+    // Load messages
+    await loadMessages(conversationId);
+
+    // Mark messages as read
+    markConversationAsRead(conversationId);
+}
+
+// Update chat header with conversation info
+function updateChatHeader(conversation) {
+    document.getElementById('chatUserName').textContent = conversation.user.username;
+    document.getElementById('chatUserStatus').textContent = conversation.user.subscriptionStatus;
+    document.getElementById('chatConversationSubject').textContent = conversation.subject;
+    document.getElementById('conversationStatus').value = conversation.status;
+}
+
+// Load messages for a conversation
+async function loadMessages(conversationId) {
+    try {
+        const container = document.getElementById('messagesContainer');
+        container.innerHTML = '<div class="messages-loading"><i class="fas fa-spinner fa-spin"></i> Loading messages...</div>';
+
+        const response = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load messages');
+        }
+
+        const data = await response.json();
+        currentMessages = data.messages;
+
+        renderMessages();
+        scrollToBottom();
+
+    } catch (error) {
+        console.error('Error loading messages:', error);
+        showChatError('Failed to load messages');
+    }
+}
+
+// Render messages in chat area
+function renderMessages() {
+    const container = document.getElementById('messagesContainer');
+
+    if (currentMessages.length === 0) {
+        container.innerHTML = `
+            <div class="messages-loading">
+                <i class="fas fa-comment-slash"></i>
+                No messages in this conversation
+            </div>
+        `;
+        return;
+    }
+
+    const messagesHTML = currentMessages.map(message => {
+        const messageDate = message.createdAt ? new Date(message.createdAt) : new Date();
+        const timeAgo = formatTimeAgo(messageDate);
+        const senderName = message.sender ? message.sender.username : 'Unknown';
+
+        return `
+            <div class="message ${message.senderType}" data-message-id="${message.id}">
+                <div class="message-avatar">
+                    <i class="fas fa-${message.senderType === 'user' ? 'user' : 'user-shield'}"></i>
+                </div>
+                <div class="message-content">
+                    <div class="message-bubble">
+                        ${escapeHtml(message.message)}
+                    </div>
+                    <div class="message-meta">
+                        <span>${senderName}</span>
+                        <span>•</span>
+                        <span>${timeAgo}</span>
+                        ${message.status === 'read' ? '<i class="fas fa-check-double" title="Read"></i>' : '<i class="fas fa-check" title="Sent"></i>'}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = messagesHTML;
+}
+
+// Send a message
+async function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
+
+    if (!message || !selectedConversationId) {
+        return;
+    }
+
+    if (message.length > 5000) {
+        showChatError('Message too long (max 5000 characters)');
+        return;
+    }
+
+    try {
+        // Disable send button
+        const sendBtn = document.getElementById('sendMessageBtn');
+        sendBtn.disabled = true;
+
+        // Send via WebSocket for real-time delivery
+        if (chatSocket) {
+            const messageData = {
+                conversationId: selectedConversationId,
+                message: message,
+                senderType: 'admin',
+                senderId: getCurrentAdminId()
+            };
+
+            chatSocket.emit('send-chat-message', messageData);
+
+            // Add message to chat immediately for better UX
+            const tempMessage = {
+                id: Date.now(), // Temporary ID
+                conversationId: selectedConversationId,
+                message: message,
+                senderType: 'admin',
+                senderId: getCurrentAdminId(),
+                sender: { username: 'Admin' },
+                createdAt: new Date().toISOString(),
+                status: 'sent'
+            };
+            addMessageToChat(tempMessage);
+
+            // Clear input immediately for better UX
+            input.value = '';
+            updateCharacterCount();
+
+            // Re-enable send button
+            sendBtn.disabled = false;
+
+            // Update conversation in list
+            updateConversationInList(selectedConversationId);
+        } else {
+            // Fallback to REST API if WebSocket is not available
+            const response = await fetch(`/api/chat/admin/conversations/${selectedConversationId}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify({ message })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to send message');
+            }
+
+            // Clear input
+            input.value = '';
+            updateCharacterCount();
+
+            // Re-enable send button
+            sendBtn.disabled = false;
+
+            // Update conversation in list
+            updateConversationInList(selectedConversationId);
+        }
+
+    } catch (error) {
+        console.error('Error sending message:', error);
+        showChatError('Failed to send message');
+
+        // Re-enable send button
+        document.getElementById('sendMessageBtn').disabled = false;
+    }
+}
+
+// Handle message input keydown
+function handleMessageKeyDown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+    }
+}
+
+// Handle typing indicator
+function handleTyping() {
+    const input = document.getElementById('messageInput');
+    updateCharacterCount();
+
+    // Update send button state
+    const sendBtn = document.getElementById('sendMessageBtn');
+    sendBtn.disabled = input.value.trim().length === 0;
+
+    // Send typing indicator
+    if (chatSocket && selectedConversationId) {
+        chatSocket.emit('typing-start', {
+            conversationId: selectedConversationId,
+            senderType: 'admin',
+            senderId: getCurrentAdminId(),
+            senderName: getCurrentAdminUsername()
+        });
+
+        // Clear previous timeout
+        if (typingTimeout) {
+            clearTimeout(typingTimeout);
+        }
+
+        // Stop typing after 2 seconds of inactivity
+        typingTimeout = setTimeout(() => {
+            chatSocket.emit('typing-stop', {
+                conversationId: selectedConversationId,
+                senderType: 'admin',
+                senderId: getCurrentAdminId()
+            });
+        }, 2000);
+    }
+}
+
+// Update character count
+function updateCharacterCount() {
+    const input = document.getElementById('messageInput');
+    const counter = document.getElementById('messageCharCount');
+    if (counter) {
+        counter.textContent = input.value.length;
+
+        // Change color if approaching limit
+        if (input.value.length > 4500) {
+            counter.style.color = 'var(--error-color)';
+        } else if (input.value.length > 4000) {
+            counter.style.color = 'var(--warning-color)';
+        } else {
+            counter.style.color = 'var(--text-muted)';
+        }
+    }
+}
+
+// Show typing indicator
+function showTypingIndicator(isTyping, senderName) {
+    const indicator = document.getElementById('typingIndicator');
+    const text = document.getElementById('typingText');
+
+    if (isTyping) {
+        text.textContent = `${senderName} is typing...`;
+        indicator.classList.remove('hidden');
+        scrollToBottom();
+    } else {
+        indicator.classList.add('hidden');
+    }
+}
+
+// Add new message to chat
+function addMessageToChat(messageData) {
+    currentMessages.push(messageData);
+    renderMessages();
+    scrollToBottom();
+}
+
+// Mark messages as read
+function markMessagesAsRead(messageIds) {
+    messageIds.forEach(messageId => {
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            const statusIcon = messageElement.querySelector('.message-meta i');
+            if (statusIcon) {
+                statusIcon.className = 'fas fa-check-double';
+                statusIcon.title = 'Read';
+            }
+        }
+    });
+}
+
+// Mark conversation as read
+async function markConversationAsRead(conversationId) {
+    try {
+        if (chatSocket) {
+            chatSocket.emit('mark-messages-read', {
+                conversationId: conversationId,
+                readerType: 'admin',
+                readerId: getCurrentAdminId()
+            });
+        }
+
+        // Update conversation in list to remove unread indicator
+        const conversation = currentConversations.find(c => c.id === conversationId);
+        if (conversation) {
+            conversation.unreadCount = 0;
+            renderConversationsList();
+            updateChatStatsFromConversations(); // Update stats after marking as read
+            updateUnrepliedMessagesCount(); // Update dashboard unreplied messages count
+        }
+
+    } catch (error) {
+        console.error('Error marking conversation as read:', error);
+    }
+}
+
+// Update conversation status
+async function updateConversationStatus() {
+    const statusSelect = document.getElementById('conversationStatus');
+    const newStatus = statusSelect.value;
+
+    if (!selectedConversationId) return;
+
+    try {
+        const response = await fetch(`/api/chat/admin/conversations/${selectedConversationId}/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+            },
+            body: JSON.stringify({ status: newStatus })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to update conversation status');
+        }
+
+        // Update conversation in list
+        const conversation = currentConversations.find(c => c.id === selectedConversationId);
+        if (conversation) {
+            conversation.status = newStatus;
+            renderConversationsList();
+        }
+
+        showChatSuccess(`Conversation marked as ${newStatus}`);
+
+    } catch (error) {
+        console.error('Error updating conversation status:', error);
+        showChatError('Failed to update conversation status');
+
+        // Revert select value
+        const conversation = currentConversations.find(c => c.id === selectedConversationId);
+        if (conversation) {
+            statusSelect.value = conversation.status;
+        }
+    }
+}
+
+// Filter conversations by status
+function filterConversations() {
+    const statusFilter = document.getElementById('chatStatusFilter');
+    const status = statusFilter.value;
+    loadConversations(status);
+}
+
+// Search conversations
+function searchConversations() {
+    const searchInput = document.getElementById('chatSearchInput');
+    const query = searchInput.value.toLowerCase();
+
+    if (!query) {
+        renderConversationsList();
+        return;
+    }
+
+    const filteredConversations = currentConversations.filter(conv =>
+        conv.user.username.toLowerCase().includes(query) ||
+        conv.subject.toLowerCase().includes(query) ||
+        (conv.lastMessage && conv.lastMessage.message.toLowerCase().includes(query))
+    );
+
+    // Temporarily update conversations for rendering
+    const originalConversations = currentConversations;
+    currentConversations = filteredConversations;
+    renderConversationsList();
+    currentConversations = originalConversations;
+}
+
+// Refresh chat
+function refreshChat() {
+    console.log('🔄 Refreshing chat...');
+
+    if (selectedConversationId) {
+        loadMessages(selectedConversationId);
+    }
+
+    // Use current filter value
+    const statusFilter = document.getElementById('chatStatusFilter');
+    const currentStatus = statusFilter ? statusFilter.value : '';
+    loadConversations(currentStatus);
+}
+
+// Update conversation in list after new message
+function updateConversationInList(conversationId) {
+    // Reload conversations to get updated data
+    loadConversations(document.getElementById('chatStatusFilter').value);
+}
+
+// Update chat statistics from current conversations data
+function updateChatStatsFromConversations() {
+    if (!currentConversations) return;
+
+    const totalConversations = currentConversations.length;
+    const openConversations = currentConversations.filter(c => c.status === 'open').length;
+    const unreadMessages = currentConversations.reduce((total, c) => total + (c.unreadCount || 0), 0);
+
+    document.getElementById('totalConversations').textContent = totalConversations;
+    document.getElementById('openConversations').textContent = openConversations;
+    document.getElementById('unreadMessages').textContent = unreadMessages;
+
+    // Update unread badge in tab
+    const badge = document.getElementById('chatUnreadBadge');
+    if (unreadMessages > 0) {
+        badge.textContent = unreadMessages;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+
+    console.log('📊 Updated chat stats:', { totalConversations, openConversations, unreadMessages });
+}
+
+// Load chat statistics
+async function loadChatStats() {
+    try {
+        const response = await fetch('/api/chat/admin/stats', {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const stats = data.stats;
+
+            document.getElementById('totalConversations').textContent = stats.totalConversations;
+            document.getElementById('openConversations').textContent = stats.openConversations;
+            document.getElementById('unreadMessages').textContent = stats.unreadMessages;
+
+            // Update unread badge in tab
+            const badge = document.getElementById('chatUnreadBadge');
+            if (stats.unreadMessages > 0) {
+                badge.textContent = stats.unreadMessages;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        } else {
+            console.error('Failed to load chat stats:', response.status);
+            // Fallback to calculating from current conversations
+            const totalConversations = currentConversations.length;
+            const openConversations = currentConversations.filter(c => c.status === 'open').length;
+            const unreadMessages = currentConversations.reduce((total, c) => total + (c.unreadCount || 0), 0);
+
+            document.getElementById('totalConversations').textContent = totalConversations;
+            document.getElementById('openConversations').textContent = openConversations;
+            document.getElementById('unreadMessages').textContent = unreadMessages;
+
+            // Update unread badge in tab
+            const badge = document.getElementById('chatUnreadBadge');
+            if (unreadMessages > 0) {
+                badge.textContent = unreadMessages;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+    } catch (error) {
+        console.error('Error loading chat stats:', error);
+        // Fallback to calculating from current conversations
+        const totalConversations = currentConversations.length;
+        const openConversations = currentConversations.filter(c => c.status === 'open').length;
+        const unreadMessages = currentConversations.reduce((total, c) => total + (c.unreadCount || 0), 0);
+
+        document.getElementById('totalConversations').textContent = totalConversations;
+        document.getElementById('openConversations').textContent = openConversations;
+        document.getElementById('unreadMessages').textContent = unreadMessages;
+
+        // Update unread badge in tab
+        const badge = document.getElementById('chatUnreadBadge');
+        if (unreadMessages > 0) {
+            badge.textContent = unreadMessages;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+}
+
+// Handle new user message notification
+function handleNewUserMessage(data) {
+    // Update unread count
+    loadChatStats();
+
+    // Update dashboard unreplied messages count
+    updateUnrepliedMessagesCount();
+
+    // If conversation is not currently selected, show notification
+    if (data.conversationId !== selectedConversationId) {
+        showChatNotification(`New message from ${data.conversation.user.username}`);
+    }
+
+    // Reload conversations to update list
+    loadConversations(document.getElementById('chatStatusFilter').value);
+}
+
+// Utility functions
+function getCurrentAdminId() {
+    // This should be stored when admin logs in
+    return parseInt(localStorage.getItem('adminId')) || 1;
+}
+
+function getCurrentAdminUsername() {
+    return localStorage.getItem('adminUsername') || 'Admin';
+}
+
+function scrollToBottom() {
+    const container = document.getElementById('messagesContainer');
+    container.scrollTop = container.scrollHeight;
+}
+
+function formatTimeAgo(date) {
+    // Handle invalid dates
+    if (!date || isNaN(date.getTime())) {
+        return 'Unknown';
+    }
+
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+
+    return date.toLocaleDateString();
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showChatError(message) {
+    // You can implement a toast notification system here
+    console.error('Chat Error:', message);
+    alert('Error: ' + message);
+}
+
+function showChatSuccess(message) {
+    // You can implement a toast notification system here
+    console.log('Chat Success:', message);
+}
+
+function showChatNotification(message) {
+    // You can implement a notification system here
+    console.log('Chat Notification:', message);
+}
+
+// Add chat to the tab initialization
+const originalShowTab = window.showTab;
+window.showTab = function(tabName) {
+    originalShowTab(tabName);
+
+    if (tabName === 'chat') {
+        console.log('🔄 Chat tab selected, force loading conversations...');
+
+        // Check if admin token exists before initializing
+        const token = localStorage.getItem('adminToken');
+        if (!token) {
+            console.error('❌ No admin token found when switching to chat tab');
+            return;
+        }
+
+        // Force load conversations immediately when chat tab is clicked
+        setTimeout(() => {
+            console.log('🔄 Force loading conversations from showTab...');
+            loadConversations(''); // Load all conversations
+
+            // Also initialize chat features
+            initializeChat();
+        }, 100);
+    }
+};

@@ -154,6 +154,25 @@ class UserService {
     }
   }
 
+  // Update user activity (for heartbeat)
+  static async updateUserActivity(userId) {
+    try {
+      const user = await User.findByPk(userId);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      await user.update({
+        last_activity: new Date()
+      });
+
+      return user;
+    } catch (error) {
+      logger.error('Error updating user activity:', error);
+      throw error;
+    }
+  }
+
   // Clear all online statuses (called on server startup)
   static async clearAllOnlineStatuses() {
     try {
@@ -254,7 +273,7 @@ class UserService {
     }
   }
 
-  // End all active sessions for a user
+  // End all active sessions for a user (without affecting online status)
   static async endActiveUserSessions(userId, reason = 'new_connection') {
     try {
       const activeSessions = await UserSession.findAll({
@@ -265,9 +284,14 @@ class UserService {
       });
 
       if (activeSessions.length > 0) {
-        // End all active sessions
+        // End all active sessions (just update the session records, don't affect user online status)
         for (const session of activeSessions) {
-          await session.endSession(reason);
+          // Directly update session without triggering user offline logic
+          session.ended_at = new Date();
+          session.status = 'inactive';
+          session.disconnect_reason = reason;
+          session.duration_seconds = Math.floor((session.ended_at - session.started_at) / 1000);
+          await session.save();
         }
 
         logger.info(`Ended ${activeSessions.length} active sessions for user ID: ${userId}`);

@@ -380,6 +380,23 @@
             transform: translateY(-2px);
         }
 
+        .stat-card.clickable {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .stat-card.clickable:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.2);
+            background: var(--dark-surface);
+        }
+
+        .stat-card.clickable:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(var(--primary-color-rgb), 0.3);
+        }
+
         .stat-value {
             font-size: 24px;
             font-weight: 700;
@@ -975,6 +992,516 @@
                 font-size: 18px;
             }
         }
+
+        /* Chat Interface Styles */
+        .chat-container {
+            display: flex;
+            height: 70vh;
+            background: var(--dark-surface);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .chat-sidebar {
+            width: 350px;
+            background: var(--dark-surface-light);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--dark-bg);
+        }
+
+        .chat-sidebar-header h3 {
+            color: var(--text-primary);
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+
+        .chat-filters select {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .chat-search {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            position: relative;
+        }
+
+        .chat-search input {
+            width: 100%;
+            padding: 10px 40px 10px 12px;
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .chat-search i {
+            position: absolute;
+            right: 32px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .conversations-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .conversation-item {
+            padding: 16px;
+            margin-bottom: 4px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+        }
+
+        .conversation-item:hover {
+            background: var(--dark-surface);
+        }
+
+        .conversation-item.active {
+            background: var(--primary-color);
+            border-left-color: var(--accent-color);
+        }
+
+        .conversation-item.unread {
+            border-left-color: var(--warning-color);
+        }
+
+        .conversation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .conversation-user {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .conversation-time {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .conversation-preview {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .conversation-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .conversation-status {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .conversation-status.open {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .conversation-status.pending {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .conversation-status.closed {
+            background: var(--text-muted);
+            color: white;
+        }
+
+        .unread-count {
+            background: var(--error-color);
+            color: white;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-welcome {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--dark-surface);
+        }
+
+        .welcome-content {
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .welcome-icon {
+            font-size: 48px;
+            color: var(--primary-color);
+            margin-bottom: 16px;
+        }
+
+        .welcome-content h3 {
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .welcome-content p {
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .chat-stats {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            display: block;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 200px);
+            max-height: 600px;
+        }
+
+        .chat-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--dark-bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .user-details h4 {
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            font-size: 16px;
+        }
+
+        .user-status {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-right: 8px;
+        }
+
+        .user-status.active {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .conversation-subject {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .chat-actions select {
+            padding: 6px 12px;
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: var(--dark-surface);
+            min-height: 300px;
+            max-height: calc(100vh - 400px);
+        }
+
+        .message {
+            margin-bottom: 16px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .message.admin {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: var(--accent-color);
+        }
+
+        .message.admin .message-avatar {
+            background: var(--primary-color);
+        }
+
+        .message-content {
+            flex: 1;
+            max-width: 70%;
+        }
+
+        .message-bubble {
+            padding: 12px 16px;
+            border-radius: 16px;
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+
+        .message.user .message-bubble {
+            background: var(--dark-surface-light);
+            color: var(--text-primary);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.admin .message-bubble {
+            background: var(--primary-color);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .message.admin .message-meta {
+            justify-content: flex-end;
+        }
+
+        .typing-indicator {
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--dark-surface-light);
+            border-top: 1px solid var(--border-color);
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dots span {
+            width: 6px;
+            height: 6px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        .message-input-container {
+            border-top: 1px solid var(--border-color);
+            background: var(--dark-bg);
+            padding: 16px 20px;
+            flex-shrink: 0;
+            position: sticky;
+            bottom: 0;
+        }
+
+        .message-input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .message-input-wrapper textarea {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            color: var(--text-primary);
+            font-size: 14px;
+            resize: none;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        .message-input-wrapper textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .send-btn {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            background: var(--primary-dark);
+            transform: scale(1.05);
+        }
+
+        .send-btn:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .message-input-footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 8px;
+        }
+
+        .character-count {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .unread-badge {
+            background: var(--error-color);
+            color: white;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 8px;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .loading-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--text-muted);
+            gap: 8px;
+        }
+
+        .messages-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--text-muted);
+            gap: 8px;
+        }
+
+        /* Responsive Design for Chat */
+        @media (max-width: 768px) {
+            .chat-container {
+                height: 60vh;
+            }
+
+            .chat-sidebar {
+                width: 300px;
+            }
+
+            .message-content {
+                max-width: 85%;
+            }
+        }
+        }
     </style>
 </head>
 <body>
@@ -1056,13 +1583,22 @@
                     <i class="fas fa-users"></i>
                     User Management
                 </button>
-                <button class="nav-tab" onclick="showTab('online')">
+                <button class="nav-tab" onclick="showTab('online')" style="display: none;">
                     <i class="fas fa-circle" style="color: var(--success-color);"></i>
                     Online Users
                 </button>
                 <button class="nav-tab" onclick="showTab('admins')">
                     <i class="fas fa-user-shield"></i>
                     Admin Accounts
+                </button>
+                <button class="nav-tab" onclick="showTab('chat')">
+                    <i class="fas fa-comments"></i>
+                    Support Chat
+                    <span id="chatUnreadBadge" class="unread-badge hidden">0</span>
+                </button>
+                <button class="nav-tab" onclick="showTab('backups')">
+                    <i class="fas fa-database"></i>
+                    Backups
                 </button>
             </div>
 
@@ -1091,22 +1627,22 @@
                             </h2>
                         </div>
                         <div class="stats-grid">
-                            <div class="stat-card">
+                            <div class="stat-card clickable" onclick="navigateToSection('users')" title="View all users">
                                 <i class="fas fa-users stat-icon"></i>
                                 <div class="stat-value" id="totalUsers">0</div>
                                 <div class="stat-label">Total Users</div>
                             </div>
-                            <div class="stat-card">
-                                <i class="fas fa-circle stat-icon" style="color: var(--success-color);"></i>
-                                <div class="stat-value" id="onlineUsers">0</div>
-                                <div class="stat-label">Online Now</div>
+                            <div class="stat-card clickable" onclick="navigateToSection('chat')" title="View support chat">
+                                <i class="fas fa-envelope stat-icon" style="color: var(--warning-color);"></i>
+                                <div class="stat-value" id="unrepliedMessages">0</div>
+                                <div class="stat-label">Unreplied Messages</div>
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card clickable" onclick="navigateToSection('admins')" title="View admin accounts">
                                 <i class="fas fa-user-shield stat-icon"></i>
                                 <div class="stat-value" id="adminCount">1</div>
                                 <div class="stat-label">Admin Accounts</div>
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card clickable" onclick="navigateToSection('config')" title="View server configuration">
                                 <i class="fas fa-server stat-icon"></i>
                                 <div class="stat-value" id="serverStatus">Online</div>
                                 <div class="stat-label">Server Status</div>
@@ -1341,7 +1877,7 @@
             </div>
 
             <!-- Online Users Tab -->
-            <div id="onlineTab" class="tab-content hidden">
+            <div id="onlineTab" class="tab-content hidden" style="display: none !important;">
                 <div class="card">
                     <div class="card-header">
                         <h2 class="card-title">
@@ -1415,50 +1951,173 @@
                 </div>
             </div>
 
-            <!-- Backup Management -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">
-                        <i class="fas fa-database card-icon"></i>
-                        Backup Management
-                    </h2>
-                </div>
-                <div id="backupAlert" class="alert" style="display: none;"></div>
-
-                <!-- Upload Backup Section -->
-                <div class="upload-section">
-                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
-                    <h3 class="upload-title">Upload Backup File</h3>
-                    <p class="upload-subtitle">Select a JSON backup file to restore configuration</p>
-                    <div class="file-input-wrapper">
-                        <input type="file" id="backupFileInput" accept=".json" class="file-input">
-                        <label for="backupFileInput" class="file-input-label">
-                            <i class="fas fa-file-upload"></i>
-                            Choose File
-                        </label>
+            <!-- Backups Tab -->
+            <div id="backupsTab" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-database card-icon"></i>
+                            Backup Management
+                        </h2>
                     </div>
-                    <button type="button" class="btn btn-primary" onclick="uploadBackup()">
-                        <i class="fas fa-upload"></i>
-                        Upload & Restore
-                    </button>
-                </div>
+                    <div id="backupAlert" class="alert" style="display: none;"></div>
 
-                <!-- Available Backups Section -->
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h3 style="color: var(--text-primary); margin: 0;">
-                            <i class="fas fa-archive" style="margin-right: 8px;"></i>
-                            Available Backups
-                        </h3>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="loadBackups()">
-                            <i class="fas fa-sync"></i>
-                            Refresh List
+                    <!-- Upload Backup Section -->
+                    <div class="upload-section">
+                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                        <h3 class="upload-title">Upload Backup File</h3>
+                        <p class="upload-subtitle">Select a JSON backup file to restore configuration</p>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="backupFileInput" accept=".json" class="file-input">
+                            <label for="backupFileInput" class="file-input-label">
+                                <i class="fas fa-file-upload"></i>
+                                Choose File
+                            </label>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="uploadBackup()">
+                            <i class="fas fa-upload"></i>
+                            Upload & Restore
                         </button>
                     </div>
-                    <div id="backupsList">
-                        <div style="text-align: center; padding: 20px; color: var(--text-muted);">
-                            <i class="fas fa-spinner fa-spin"></i>
-                            Loading backups...
+
+                    <!-- Available Backups Section -->
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3 style="color: var(--text-primary); margin: 0;">
+                                <i class="fas fa-archive" style="margin-right: 8px;"></i>
+                                Available Backups
+                            </h3>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="loadBackups()">
+                                <i class="fas fa-sync"></i>
+                                Refresh List
+                            </button>
+                        </div>
+                        <div id="backupsList">
+                            <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                Loading backups...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+
+            <!-- Support Chat Tab -->
+            <div id="chatTab" class="tab-content hidden">
+                <div class="chat-container">
+                    <!-- Chat Sidebar -->
+                    <div class="chat-sidebar">
+                        <div class="chat-sidebar-header">
+                            <!-- Chat Statistics -->
+                            <div class="chat-stats" style="display: flex; gap: 24px; justify-content: center; margin-bottom: 20px; padding: 16px; background: var(--dark-surface-light); border-radius: 8px; border: 1px solid var(--border-color);">
+                                <div class="stat-item">
+                                    <span class="stat-number" id="totalConversations">0</span>
+                                    <span class="stat-label">TOTAL CONVERSATIONS</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-number" id="openConversations">0</span>
+                                    <span class="stat-label">OPEN</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-number" id="unreadMessages">0</span>
+                                    <span class="stat-label">UNREAD</span>
+                                </div>
+                            </div>
+
+                            <h3>
+                                <i class="fas fa-comments"></i>
+                                Support Conversations
+                            </h3>
+                            <div class="chat-filters">
+                                <select id="chatStatusFilter" onchange="filterConversations()">
+                                    <option value="">All</option>
+                                    <option value="open">Open</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="closed">Closed</option>
+                                </select>
+
+                            </div>
+                        </div>
+                        <div class="chat-search">
+                            <input type="text" id="chatSearchInput" placeholder="Search conversations..." onkeyup="searchConversations()">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <div id="conversationsList" class="conversations-list">
+                            <div class="loading-state">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                Loading conversations...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Main Area -->
+                    <div class="chat-main">
+                        <div id="chatWelcome" class="chat-welcome">
+                            <div class="welcome-content">
+                                <i class="fas fa-comments welcome-icon"></i>
+                                <h3>Support Chat</h3>
+                            </div>
+                        </div>
+
+                        <div id="chatArea" class="chat-area hidden">
+                            <!-- Chat Header -->
+                            <div class="chat-header">
+                                <div class="chat-user-info">
+                                    <div class="user-avatar">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    <div class="user-details">
+                                        <h4 id="chatUserName">User Name</h4>
+                                        <span id="chatUserStatus" class="user-status">Active</span>
+                                        <span id="chatConversationSubject" class="conversation-subject">Support Request</span>
+                                    </div>
+                                </div>
+                                <div class="chat-actions">
+                                    <select id="conversationStatus" onchange="updateConversationStatus()">
+                                        <option value="open">Open</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="closed">Closed</option>
+                                    </select>
+                                    <button class="btn btn-sm btn-secondary" onclick="refreshChat()">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Messages Area -->
+                            <div id="messagesContainer" class="messages-container">
+                                <div class="messages-loading">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    Loading messages...
+                                </div>
+                            </div>
+
+                            <!-- Typing Indicator -->
+                            <div id="typingIndicator" class="typing-indicator hidden">
+                                <div class="typing-dots">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                <span id="typingText">User is typing...</span>
+                            </div>
+
+                            <!-- Message Input -->
+                            <div class="message-input-container">
+                                <div class="message-input-wrapper">
+                                    <textarea id="messageInput" placeholder="Type your message..." rows="3" onkeydown="handleMessageKeyDown(event)" oninput="handleTyping()"></textarea>
+                                    <button id="sendMessageBtn" class="send-btn" onclick="sendMessage()" disabled>
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                                <div class="message-input-footer">
+                                    <span class="character-count">
+                                        <span id="messageCharCount">0</span>/5000
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

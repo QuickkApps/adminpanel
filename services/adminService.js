@@ -363,6 +363,32 @@ class AdminService {
       throw error;
     }
   }
+
+  // Update admin activity
+  static async updateAdminActivity(adminId, action = 'activity') {
+    try {
+      // Find the most recent active session for this admin
+      const session = await AdminSession.findOne({
+        where: {
+          admin_id: adminId,
+          status: 'active'
+        },
+        order: [['created_at', 'DESC']]
+      });
+
+      if (session && session.isActive()) {
+        await session.updateActivity(action);
+        logger.debug(`Updated admin activity for admin ID: ${adminId}, action: ${action}`);
+        return true;
+      } else {
+        logger.warn(`No active session found for admin ID: ${adminId}`);
+        return false;
+      }
+    } catch (error) {
+      logger.error('Error updating admin activity:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = AdminService;

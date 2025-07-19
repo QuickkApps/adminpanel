@@ -18,6 +18,8 @@ const Admin = require('./models/Admin')(sequelize);
 const User = require('./models/User')(sequelize);
 const UserSession = require('./models/UserSession')(sequelize);
 const AdminSession = require('./models/AdminSession')(sequelize);
+const ChatConversation = require('./models/ChatConversation')(sequelize);
+const ChatMessage = require('./models/ChatMessage')(sequelize);
 
 // Define associations
 Admin.hasMany(AdminSession, { foreignKey: 'admin_id', as: 'sessions' });
@@ -25,6 +27,24 @@ AdminSession.belongsTo(Admin, { foreignKey: 'admin_id', as: 'admin' });
 
 User.hasMany(UserSession, { foreignKey: 'user_id', as: 'sessions' });
 UserSession.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+// Chat model associations
+const models = {
+  Admin,
+  User,
+  UserSession,
+  AdminSession,
+  ChatConversation,
+  ChatMessage,
+};
+
+// Initialize associations for chat models
+if (ChatConversation.associate) {
+  ChatConversation.associate(models);
+}
+if (ChatMessage.associate) {
+  ChatMessage.associate(models);
+}
 
 // Database initialization
 const initializeDatabase = async () => {
@@ -86,6 +106,8 @@ module.exports = {
     User,
     UserSession,
     AdminSession,
+    ChatConversation,
+    ChatMessage,
   },
   initializeDatabase,
 };

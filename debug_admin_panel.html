@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Admin Panel Chat</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { padding: 10px 15px; margin: 5px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <h1>Admin Panel Chat Debug</h1>
+    
+    <div class="section">
+        <h3>1. Login Test</h3>
+        <button onclick="testLogin()">Test Admin Login</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+    
+    <div class="section">
+        <h3>2. Conversations API Test</h3>
+        <button onclick="testConversations()">Test Load Conversations</button>
+        <div id="conversationsResult" class="result"></div>
+    </div>
+    
+    <div class="section">
+        <h3>3. Token Check</h3>
+        <button onclick="checkToken()">Check Stored Token</button>
+        <div id="tokenResult" class="result"></div>
+    </div>
+
+    <script>
+        let adminToken = null;
+
+        async function testLogin() {
+            const resultDiv = document.getElementById('loginResult');
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    adminToken = data.token;
+                    localStorage.setItem('adminToken', adminToken);
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `✅ Login successful!<br>Token: ${adminToken.substring(0, 50)}...`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ Login failed: ${data.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+
+        async function testConversations() {
+            const resultDiv = document.getElementById('conversationsResult');
+            const token = adminToken || localStorage.getItem('adminToken');
+            
+            if (!token) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '❌ No token found. Please login first.';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/chat/admin/conversations?status=open', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `✅ Conversations loaded!<br>Count: ${data.conversations.length}<br><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ API failed: ${data.message || data.error}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+
+        function checkToken() {
+            const resultDiv = document.getElementById('tokenResult');
+            const token = localStorage.getItem('adminToken');
+            
+            if (token) {
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `✅ Token found: ${token.substring(0, 50)}...`;
+            } else {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '❌ No token found in localStorage';
+            }
+        }
+    </script>
+</body>
+</html>
