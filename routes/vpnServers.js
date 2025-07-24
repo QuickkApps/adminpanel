@@ -5,7 +5,7 @@ const authMiddleware = require('../middleware/auth');
 const logger = require('../utils/logger');
 
 const router = express.Router();
-const { VpnServer, Admin } = models;
+const { VpnServer, Admin, AdminSetting } = models;
 
 // Get all VPN servers (admin only)
 router.get('/', authMiddleware, async (req, res) => {
@@ -52,13 +52,23 @@ router.get('/', authMiddleware, async (req, res) => {
 // Get active VPN servers (public endpoint for Flutter app)
 router.get('/active', async (req, res) => {
   try {
-    const servers = await VpnServer.getActiveServers();
+    // Get the filtering setting from admin settings
+    const showOnlyCustom = await AdminSetting.getShowOnlyCustomServers();
+
+    // Use the new filtered method instead of getActiveServers
+    const servers = await VpnServer.getFilteredServers(showOnlyCustom);
     const flutterFormatServers = servers.map(server => server.toFlutterFormat());
+
+    logger.info(`Serving ${flutterFormatServers.length} VPN servers (showOnlyCustom: ${showOnlyCustom})`);
 
     res.json({
       success: true,
       data: flutterFormatServers,
       count: flutterFormatServers.length,
+      _metadata: {
+        showOnlyCustomServers: showOnlyCustom,
+        totalServers: flutterFormatServers.length,
+      },
     });
   } catch (error) {
     logger.error('Error fetching active VPN servers:', error);
@@ -150,6 +160,7 @@ router.post('/', [
     const serverData = {
       ...req.body,
       created_by: req.user.id,
+      is_custom: true, // All servers created via admin panel are custom
     };
 
     const server = await VpnServer.create(serverData);
@@ -308,6 +319,64 @@ router.patch('/:id/toggle', [
     res.status(500).json({
       success: false,
       error: 'Failed to toggle VPN server status',
+      message: error.message,
+    });
+  }
+});
+
+// Get VPN server filtering setting
+router.get('/settings/filter', authMiddleware, async (req, res) => {
+  try {
+    const showOnlyCustom = await AdminSetting.getShowOnlyCustomServers();
+
+    res.json({
+      success: true,
+      data: {
+        showOnlyCustomServers: showOnlyCustom,
+      },
+    });
+  } catch (error) {
+    logger.error('Error fetching VPN server filter setting:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch filter setting',
+      message: error.message,
+    });
+  }
+});
+
+// Update VPN server filtering setting
+router.put('/settings/filter', [
+  authMiddleware,
+  body('showOnlyCustomServers').isBoolean().withMessage('showOnlyCustomServers must be a boolean'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      });
+    }
+
+    const { showOnlyCustomServers } = req.body;
+    await AdminSetting.setShowOnlyCustomServers(showOnlyCustomServers);
+
+    logger.info(`VPN server filter setting updated: showOnlyCustomServers=${showOnlyCustomServers} by admin ${req.user.username}`);
+
+    res.json({
+      success: true,
+      data: {
+        showOnlyCustomServers,
+      },
+      message: 'Filter setting updated successfully',
+    });
+  } catch (error) {
+    logger.error('Error updating VPN server filter setting:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update filter setting',
       message: error.message,
     });
   }

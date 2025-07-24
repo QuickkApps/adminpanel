@@ -136,6 +136,12 @@ module.exports = (sequelize) => {
         max: 100.0,
       },
     },
+    is_custom: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      comment: 'Whether this server was added via admin panel (true) or is a pre-configured/default server (false)',
+    },
   }, {
     tableName: 'vpn_servers',
     indexes: [
@@ -147,6 +153,12 @@ module.exports = (sequelize) => {
       },
       {
         fields: ['created_by'],
+      },
+      {
+        fields: ['is_custom'],
+      },
+      {
+        fields: ['is_active', 'is_custom'], // Composite index for filtering
       },
     ],
   });
@@ -174,7 +186,7 @@ module.exports = (sequelize) => {
       Username: this.username,
       Password: this.password,
       // Additional custom server metadata
-      _isCustomServer: true,
+      _isCustomServer: this.is_custom,
       _serverId: this.id,
       _serverName: this.name,
       _port: this.port,
@@ -208,6 +220,26 @@ module.exports = (sequelize) => {
         is_active: true,
       },
       order: [['server_load', 'ASC']],
+    });
+  };
+
+  VpnServer.getFilteredServers = async function(showOnlyCustom = false) {
+    const whereClause = {
+      is_active: true,
+    };
+
+    // Add custom server filter if enabled
+    if (showOnlyCustom) {
+      whereClause.is_custom = true;
+    }
+
+    return await this.findAll({
+      where: whereClause,
+      order: [
+        ['is_featured', 'DESC'], // Featured servers first
+        ['server_load', 'ASC'],  // Then by server load
+        ['created_at', 'DESC'],  // Then by creation date (newest first)
+      ],
     });
   };
 

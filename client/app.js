@@ -3997,8 +3997,13 @@ window.refreshVpnServerList = async function() {
     }
 
     try {
-        const response = await apiCall('/api/vpn-servers');
-        vpnServers = response.data || [];
+        // Load both server list and filter setting
+        const [serverResponse] = await Promise.all([
+            apiCall('/api/vpn-servers'),
+            loadVpnServerFilterSetting()
+        ]);
+
+        vpnServers = serverResponse.data || [];
         filteredVpnServers = [...vpnServers];
         displayVpnServers(filteredVpnServers);
         updateServerCountryFilter();
@@ -4294,6 +4299,62 @@ window.deleteVpnServer = async function(serverId, serverName) {
     } catch (error) {
         console.error('Error deleting VPN server:', error);
         showAlert('error', 'Error deleting VPN server: ' + error.message);
+    }
+};
+
+// Load VPN server filter setting
+window.loadVpnServerFilterSetting = async function() {
+    try {
+        const response = await apiCall('/api/vpn-servers/settings/filter');
+        const showOnlyCustom = response.data.showOnlyCustomServers;
+
+        const toggle = document.getElementById('showOnlyCustomServersToggle');
+        if (toggle) {
+            toggle.checked = showOnlyCustom;
+        }
+
+        console.log('✅ VPN server filter setting loaded:', showOnlyCustom);
+    } catch (error) {
+        console.error('Error loading VPN server filter setting:', error);
+        // Default to false if there's an error
+        const toggle = document.getElementById('showOnlyCustomServersToggle');
+        if (toggle) {
+            toggle.checked = false;
+        }
+    }
+};
+
+// Toggle custom servers filter
+window.toggleCustomServersFilter = async function() {
+    const toggle = document.getElementById('showOnlyCustomServersToggle');
+    if (!toggle) return;
+
+    const showOnlyCustom = toggle.checked;
+
+    try {
+        console.log('🔄 Updating VPN server filter setting:', showOnlyCustom);
+
+        const response = await apiCall('/api/vpn-servers/settings/filter', {
+            method: 'PUT',
+            body: JSON.stringify({
+                showOnlyCustomServers: showOnlyCustom
+            })
+        });
+
+        console.log('✅ VPN server filter setting updated:', response);
+
+        // Show success message
+        showAlert('success', `Filter updated: ${showOnlyCustom ? 'Showing only custom servers' : 'Showing all servers'}`);
+
+        // Note: We don't refresh the admin server list here since this affects the Flutter app, not the admin panel
+        // The admin panel always shows all servers for management purposes
+
+    } catch (error) {
+        console.error('Error updating VPN server filter setting:', error);
+        showAlert('error', 'Error updating filter setting: ' + error.message);
+
+        // Revert the toggle on error
+        toggle.checked = !showOnlyCustom;
     }
 };
 
