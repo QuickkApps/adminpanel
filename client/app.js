@@ -66,6 +66,9 @@ window.showTab = function(tabName) {
         case 'backups':
             loadBackups();
             break;
+        case 'config':
+            refreshFallbackUrls();
+            break;
     }
 };
 
@@ -4750,4 +4753,370 @@ function showNotification(message, type = 'info') {
             notification.parentNode.removeChild(notification);
         }
     }, 5000);
+}
+
+// ===== FALLBACK URL MANAGEMENT FUNCTIONS =====
+
+let fallbackUrls = [];
+let filteredFallbackUrls = [];
+
+// Load fallback URLs
+window.refreshFallbackUrls = async function() {
+    console.log('🔄 Refreshing fallback URLs...');
+    const urlsList = document.getElementById('fallbackUrlsList');
+    const loading = document.getElementById('fallbackUrlsLoading');
+
+    if (loading) {
+        loading.style.display = 'block';
+    }
+
+    try {
+        const response = await apiCall('/api/fallback-urls');
+        fallbackUrls = response.data || [];
+        filteredFallbackUrls = [...fallbackUrls];
+        displayFallbackUrls(filteredFallbackUrls);
+
+        console.log(`✅ Loaded ${fallbackUrls.length} fallback URLs`);
+    } catch (error) {
+        console.error('Error loading fallback URLs:', error);
+        if (urlsList) {
+            urlsList.innerHTML = `
+                <div style="text-align: center; color: var(--error-color); padding: 20px;">
+                    <i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>
+                    Error loading fallback URLs: ${error.message}
+                </div>
+            `;
+        }
+    } finally {
+        if (loading) {
+            loading.style.display = 'none';
+        }
+    }
+};
+
+// Display fallback URLs
+function displayFallbackUrls(urls) {
+    const urlsList = document.getElementById('fallbackUrlsList');
+    if (!urlsList) return;
+
+    if (urls.length === 0) {
+        urlsList.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+                <i class="fas fa-route" style="margin-right: 8px;"></i>
+                No fallback URLs configured
+            </div>
+        `;
+        return;
+    }
+
+    urlsList.innerHTML = `
+        <div class="fallback-urls-container" id="fallbackUrlsContainer">
+            ${urls.map(url => `
+                <div class="fallback-url-item" data-id="${url.id}" draggable="true">
+                    <div class="fallback-url-handle">
+                        <i class="fas fa-grip-vertical"></i>
+                    </div>
+                    <div class="fallback-url-content">
+                        <div class="fallback-url-header">
+                            <div class="fallback-url-info">
+                                <span class="fallback-url-url">${escapeHtml(url.url)}</span>
+                                <span class="fallback-url-type ${url.url_type}">${url.url_type.toUpperCase()}</span>
+                                <span class="fallback-url-status ${url.is_active ? 'active' : 'inactive'}">
+                                    <i class="fas fa-circle"></i>
+                                    ${url.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                            </div>
+                            <div class="fallback-url-actions">
+                                <button class="btn btn-info btn-sm" onclick="testFallbackUrl(${url.id})" title="Test URL">
+                                    <i class="fas fa-vial"></i>
+                                </button>
+                                <button class="btn btn-secondary btn-sm" onclick="editFallbackUrl(${url.id})" title="Edit URL">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteFallbackUrl(${url.id})" title="Delete URL">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        ${url.description ? `<div class="fallback-url-description">${escapeHtml(url.description)}</div>` : ''}
+                        <div class="fallback-url-stats">
+                            <span class="stat">Priority: ${url.priority}</span>
+                            ${url.last_tested ? `<span class="stat">Last Tested: ${new Date(url.last_tested).toLocaleString()}</span>` : ''}
+                            ${url.last_test_status !== 'unknown' ? `<span class="stat test-status ${url.last_test_status}">Status: ${url.last_test_status.toUpperCase()}</span>` : ''}
+                            ${url.last_test_response_time ? `<span class="stat">Response: ${url.last_test_response_time}ms</span>` : ''}
+                            <span class="stat">Success: ${url.success_count} | Failures: ${url.failure_count}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+
+    // Initialize drag and drop
+    initializeFallbackUrlDragDrop();
+}
+
+// Filter fallback URLs by type
+window.filterFallbackUrls = function() {
+    const typeFilter = document.getElementById('urlTypeFilter');
+    const selectedType = typeFilter ? typeFilter.value : '';
+
+    if (!selectedType) {
+        filteredFallbackUrls = [...fallbackUrls];
+    } else {
+        filteredFallbackUrls = fallbackUrls.filter(url =>
+            url.url_type === selectedType || url.url_type === 'both'
+        );
+    }
+
+    displayFallbackUrls(filteredFallbackUrls);
+};
+
+// Add new fallback URL
+window.addFallbackUrl = function() {
+    const modal = createFallbackUrlModal();
+    document.body.appendChild(modal);
+    modal.style.display = 'flex';
+    // Add show class for proper visibility
+    setTimeout(() => modal.classList.add('show'), 10);
+};
+
+// Edit fallback URL
+window.editFallbackUrl = function(id) {
+    const url = fallbackUrls.find(u => u.id === id);
+    if (!url) return;
+
+    const modal = createFallbackUrlModal(url);
+    document.body.appendChild(modal);
+    modal.style.display = 'flex';
+    // Add show class for proper visibility
+    setTimeout(() => modal.classList.add('show'), 10);
+};
+
+// Test single fallback URL
+window.testFallbackUrl = async function(id) {
+    try {
+        showAlert('fallbackUrlAlert', 'Testing URL...', 'info');
+        const response = await apiCall(`/api/fallback-urls/${id}/test`, 'POST');
+
+        if (response.success) {
+            const result = response.data.testResult;
+            const message = `Test completed: ${result.status.toUpperCase()}${result.responseTime ? ` (${result.responseTime}ms)` : ''}`;
+            showAlert('fallbackUrlAlert', message, result.status === 'success' ? 'success' : 'warning');
+            refreshFallbackUrls(); // Refresh to show updated test results
+        } else {
+            showAlert('fallbackUrlAlert', 'Test failed: ' + response.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error testing fallback URL:', error);
+        showAlert('fallbackUrlAlert', 'Error testing URL: ' + error.message, 'error');
+    }
+};
+
+// Test all fallback URLs
+window.testAllFallbackUrls = async function() {
+    try {
+        showAlert('fallbackUrlAlert', 'Testing all URLs...', 'info');
+        const response = await apiCall('/api/fallback-urls/test-all', 'POST');
+
+        if (response.success) {
+            const results = response.data;
+            const successCount = results.filter(r => r.status === 'success').length;
+            const message = `Tested ${results.length} URLs: ${successCount} successful, ${results.length - successCount} failed`;
+            showAlert('fallbackUrlAlert', message, successCount === results.length ? 'success' : 'warning');
+            refreshFallbackUrls(); // Refresh to show updated test results
+        } else {
+            showAlert('fallbackUrlAlert', 'Test failed: ' + response.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error testing all fallback URLs:', error);
+        showAlert('fallbackUrlAlert', 'Error testing URLs: ' + error.message, 'error');
+    }
+};
+
+// Delete fallback URL
+window.deleteFallbackUrl = async function(id) {
+    const url = fallbackUrls.find(u => u.id === id);
+    if (!url) return;
+
+    if (!confirm(`Are you sure you want to delete this fallback URL?\n\n${url.url}`)) {
+        return;
+    }
+
+    try {
+        const response = await apiCall(`/api/fallback-urls/${id}`, 'DELETE');
+
+        if (response.success) {
+            showAlert('fallbackUrlAlert', 'Fallback URL deleted successfully', 'success');
+            refreshFallbackUrls();
+        } else {
+            showAlert('fallbackUrlAlert', 'Failed to delete URL: ' + response.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting fallback URL:', error);
+        showAlert('fallbackUrlAlert', 'Error deleting URL: ' + error.message, 'error');
+    }
+};
+
+// Create fallback URL modal
+function createFallbackUrlModal(url = null) {
+    const isEdit = !!url;
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>${isEdit ? 'Edit' : 'Add'} Fallback URL</h3>
+                <button class="modal-close" onclick="closeFallbackModal(this.closest('.modal'))">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="fallbackUrlForm">
+                <div class="form-group">
+                    <label for="fallbackUrl">URL *</label>
+                    <input type="url" id="fallbackUrl" name="url" value="${url ? escapeHtml(url.url) : ''}" required>
+                </div>
+                <div class="form-group">
+                    <label for="fallbackUrlType">Type *</label>
+                    <select id="fallbackUrlType" name="url_type" required>
+                        <option value="api" ${url && url.url_type === 'api' ? 'selected' : ''}>API URL</option>
+                        <option value="activation" ${url && url.url_type === 'activation' ? 'selected' : ''}>Activation URL</option>
+                        <option value="both" ${url && url.url_type === 'both' ? 'selected' : ''}>Both Types</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="fallbackDescription">Description</label>
+                    <input type="text" id="fallbackDescription" name="description" value="${url ? escapeHtml(url.description || '') : ''}" placeholder="Optional description">
+                </div>
+                ${isEdit ? `
+                <div class="form-group">
+                    <label for="fallbackActive">Status</label>
+                    <select id="fallbackActive" name="is_active">
+                        <option value="true" ${url.is_active ? 'selected' : ''}>Active</option>
+                        <option value="false" ${!url.is_active ? 'selected' : ''}>Inactive</option>
+                    </select>
+                </div>
+                ` : ''}
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeFallbackModal(this.closest('.modal'))">Cancel</button>
+                    <button type="submit" class="btn btn-primary">${isEdit ? 'Update' : 'Add'} URL</button>
+                </div>
+            </form>
+        </div>
+    `;
+
+    // Handle form submission
+    const form = modal.querySelector('#fallbackUrlForm');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const data = {
+            url: formData.get('url'),
+            url_type: formData.get('url_type'),
+            description: formData.get('description') || null,
+        };
+
+        if (isEdit) {
+            data.is_active = formData.get('is_active') === 'true';
+        }
+
+        try {
+            const endpoint = isEdit ? `/api/fallback-urls/${url.id}` : '/api/fallback-urls';
+            const method = isEdit ? 'PUT' : 'POST';
+            const response = await apiCall(endpoint, method, data);
+
+            if (response.success) {
+                showAlert('fallbackUrlAlert', `Fallback URL ${isEdit ? 'updated' : 'added'} successfully`, 'success');
+                closeFallbackModal(modal);
+                refreshFallbackUrls();
+            } else {
+                showAlert('fallbackUrlAlert', `Failed to ${isEdit ? 'update' : 'add'} URL: ` + response.message, 'error');
+            }
+        } catch (error) {
+            console.error(`Error ${isEdit ? 'updating' : 'adding'} fallback URL:`, error);
+            showAlert('fallbackUrlAlert', `Error ${isEdit ? 'updating' : 'adding'} URL: ` + error.message, 'error');
+        }
+    });
+
+    return modal;
+}
+
+// Initialize drag and drop for reordering
+function initializeFallbackUrlDragDrop() {
+    const container = document.getElementById('fallbackUrlsContainer');
+    if (!container) return;
+
+    let draggedElement = null;
+
+    container.addEventListener('dragstart', (e) => {
+        if (e.target.classList.contains('fallback-url-item')) {
+            draggedElement = e.target;
+            e.target.style.opacity = '0.5';
+        }
+    });
+
+    container.addEventListener('dragend', (e) => {
+        if (e.target.classList.contains('fallback-url-item')) {
+            e.target.style.opacity = '1';
+            draggedElement = null;
+        }
+    });
+
+    container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+
+    container.addEventListener('drop', async (e) => {
+        e.preventDefault();
+
+        if (!draggedElement) return;
+
+        const dropTarget = e.target.closest('.fallback-url-item');
+        if (!dropTarget || dropTarget === draggedElement) return;
+
+        // Get all items in their new order
+        const items = Array.from(container.querySelectorAll('.fallback-url-item'));
+        const draggedIndex = items.indexOf(draggedElement);
+        const dropIndex = items.indexOf(dropTarget);
+
+        // Reorder in DOM
+        if (draggedIndex < dropIndex) {
+            dropTarget.parentNode.insertBefore(draggedElement, dropTarget.nextSibling);
+        } else {
+            dropTarget.parentNode.insertBefore(draggedElement, dropTarget);
+        }
+
+        // Get new order of IDs
+        const newOrder = Array.from(container.querySelectorAll('.fallback-url-item'))
+            .map(item => parseInt(item.dataset.id));
+
+        // Update server
+        try {
+            const response = await apiCall('/api/fallback-urls/reorder', 'PUT', { urlIds: newOrder });
+            if (response.success) {
+                showAlert('fallbackUrlAlert', 'URL order updated successfully', 'success');
+                refreshFallbackUrls(); // Refresh to show updated priorities
+            } else {
+                showAlert('fallbackUrlAlert', 'Failed to update URL order: ' + response.message, 'error');
+                refreshFallbackUrls(); // Refresh to restore original order
+            }
+        } catch (error) {
+            console.error('Error updating URL order:', error);
+            showAlert('fallbackUrlAlert', 'Error updating URL order: ' + error.message, 'error');
+            refreshFallbackUrls(); // Refresh to restore original order
+        }
+    });
+}
+
+// Close fallback modal with animation
+function closeFallbackModal(modal) {
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            if (modal.parentNode) {
+                modal.parentNode.removeChild(modal);
+            }
+        }, 300); // Wait for animation to complete
+    }
 }

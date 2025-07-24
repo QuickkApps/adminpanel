@@ -22,6 +22,7 @@ const ChatConversation = require('./models/ChatConversation')(sequelize);
 const ChatMessage = require('./models/ChatMessage')(sequelize);
 const VpnServer = require('./models/VpnServer')(sequelize);
 const AdminSetting = require('./models/AdminSetting')(sequelize);
+const FallbackUrl = require('./models/FallbackUrl')(sequelize);
 
 // Define associations
 Admin.hasMany(AdminSession, { foreignKey: 'admin_id', as: 'sessions' });
@@ -40,6 +41,7 @@ const models = {
   ChatMessage,
   VpnServer,
   AdminSetting,
+  FallbackUrl,
 };
 
 // Initialize associations for chat models
@@ -52,6 +54,9 @@ if (ChatMessage.associate) {
 if (VpnServer.associate) {
   VpnServer.associate(models);
 }
+if (FallbackUrl.associate) {
+  FallbackUrl.associate(models);
+}
 
 // Database initialization
 const initializeDatabase = async () => {
@@ -61,10 +66,20 @@ const initializeDatabase = async () => {
     logger.info('Database connection established successfully');
 
     // Sync models (create tables if they don't exist)
-    // Use force: true in development to recreate tables
+    // Use force: true in development to recreate tables, but handle existing indexes gracefully
     const isDevelopment = process.env.NODE_ENV !== 'production';
-    await sequelize.sync({ force: isDevelopment });
-    logger.info('Database models synchronized');
+    try {
+      await sequelize.sync({ force: isDevelopment });
+      logger.info('Database models synchronized');
+    } catch (error) {
+      if (error.message.includes('already exists')) {
+        logger.warn('Some database objects already exist, continuing with alter sync...');
+        await sequelize.sync({ alter: true });
+        logger.info('Database models synchronized with alter');
+      } else {
+        throw error;
+      }
+    }
 
     // Create default admin if it doesn't exist
     await createDefaultAdmin();
@@ -117,6 +132,7 @@ module.exports = {
     ChatMessage,
     VpnServer,
     AdminSetting,
+    FallbackUrl,
   },
   initializeDatabase,
 };

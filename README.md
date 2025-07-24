@@ -1,15 +1,53 @@
-# Anume Admin Panel
+# Anume VPN Admin Panel
 
-A web-based admin panel for remotely managing the Anume app's configuration, including API URLs, credentials, and other settings.
+A comprehensive web-based administration panel for managing VPN users, servers, and configurations with real-time chat support and fallback URL management.
 
-## Features
+![Admin Panel Dashboard](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
+![Node.js](https://img.shields.io/badge/Node.js-16%2B-green)
+![License](https://img.shields.io/badge/License-MIT-blue)
 
-- 🔧 **Remote Configuration Management**: Update API URLs and credentials for the main Anume app
-- 🔄 **Real-time Updates**: Live communication between admin panel and main app
-- 🔐 **Secure Authentication**: JWT-based authentication with role-based access
-- 📊 **Status Monitoring**: View current app status and configuration
-- 💾 **Configuration Backup**: Automatic backup of configuration changes
-- 📱 **Responsive Design**: Works on desktop, tablet, and mobile devices
+## 🚀 Features
+
+### 📊 **Dashboard & Analytics**
+- Real-time user statistics and server monitoring
+- Interactive charts and system health indicators
+- Activity tracking and comprehensive reporting
+
+### 👥 **User Management**
+- Complete user lifecycle management (CRUD operations)
+- User activity monitoring and session tracking
+- Bulk operations and advanced filtering
+- Authentication and authorization system
+
+### 🖥️ **VPN Server Management**
+- Add, edit, and delete VPN servers with drag-and-drop reordering
+- Real-time server status monitoring and health checks
+- Country-based filtering and organization
+- Custom server configurations and bulk operations
+
+### 💬 **Real-time Support Chat**
+- Live chat system between admins and users
+- Message history and conversation management
+- File sharing and multimedia support
+- Multi-admin support with role-based access
+
+### ⚙️ **Configuration Management**
+- Remote configuration updates with versioning
+- OVPN file upload and URL download functionality
+- Automatic form population from uploaded files
+- Configuration rollback capabilities
+
+### 🔄 **Fallback URL System**
+- Multiple fallback URLs with priority ordering
+- Automatic failover and retry logic with exponential backoff
+- URL health monitoring and testing
+- Client-side persistence and caching
+
+### 🔐 **Security Features**
+- JWT-based authentication with refresh tokens
+- Rate limiting and DDoS protection
+- Input validation and sanitization
+- Secure file upload handling with virus scanning
 
 ## Quick Start
 

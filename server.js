@@ -83,6 +83,7 @@ app.use((req, res, next) => {
 const logsRoutes = require('./routes/logs');
 const chatRoutes = require('./routes/chat');
 const vpnServersRoutes = require('./routes/vpnServers');
+const fallbackUrlsRoutes = require('./routes/fallbackUrls');
 app.use('/api/auth', authRoutes);
 
 // Config routes - some need auth, some don't
@@ -236,6 +237,9 @@ app.post('/api/download-ovpn', async (req, res) => {
 
 // VPN server management routes
 app.use('/api/vpn-servers', vpnServersRoutes);
+
+// Fallback URL management routes
+app.use('/api/fallback-urls', fallbackUrlsRoutes);
 
 // Chat routes
 app.use('/api/chat', chatRoutes);
