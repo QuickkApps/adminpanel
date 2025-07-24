@@ -4947,7 +4947,7 @@ window.editFallbackUrl = function(id) {
 window.testFallbackUrl = async function(id) {
     try {
         showAlert('fallbackUrlAlert', 'Testing URL...', 'info');
-        const response = await apiCall(`/api/fallback-urls/${id}/test`, 'POST');
+        const response = await apiCall(`/api/fallback-urls/${id}/test`, { method: 'POST' });
 
         if (response.success) {
             const result = response.data.testResult;
@@ -4967,7 +4967,7 @@ window.testFallbackUrl = async function(id) {
 window.testAllFallbackUrls = async function() {
     try {
         showAlert('fallbackUrlAlert', 'Testing all URLs...', 'info');
-        const response = await apiCall('/api/fallback-urls/test-all', 'POST');
+        const response = await apiCall('/api/fallback-urls/test-all', { method: 'POST' });
 
         if (response.success) {
             const results = response.data;
@@ -4994,7 +4994,7 @@ window.deleteFallbackUrl = async function(id) {
     }
 
     try {
-        const response = await apiCall(`/api/fallback-urls/${id}`, 'DELETE');
+        const response = await apiCall(`/api/fallback-urls/${id}`, { method: 'DELETE' });
 
         if (response.success) {
             showAlert('fallbackUrlAlert', 'Fallback URL deleted successfully', 'success');
@@ -5074,7 +5074,12 @@ function createFallbackUrlModal(url = null) {
         try {
             const endpoint = isEdit ? `/api/fallback-urls/${url.id}` : '/api/fallback-urls';
             const method = isEdit ? 'PUT' : 'POST';
-            const response = await apiCall(endpoint, method, data);
+
+            // Fix: Use the correct apiCall format with options object
+            const response = await apiCall(endpoint, {
+                method: method,
+                body: JSON.stringify(data)
+            });
 
             if (response.success) {
                 showAlert('fallbackUrlAlert', `Fallback URL ${isEdit ? 'updated' : 'added'} successfully`, 'success');
@@ -5143,7 +5148,10 @@ function initializeFallbackUrlDragDrop() {
 
         // Update server
         try {
-            const response = await apiCall('/api/fallback-urls/reorder', 'PUT', { urlIds: newOrder });
+            const response = await apiCall('/api/fallback-urls/reorder', {
+                method: 'PUT',
+                body: JSON.stringify({ urlIds: newOrder })
+            });
             if (response.success) {
                 showAlert('fallbackUrlAlert', 'URL order updated successfully', 'success');
                 refreshFallbackUrls(); // Refresh to show updated priorities
