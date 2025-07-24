@@ -293,11 +293,11 @@ router.get('/backups', authMiddleware, async (req, res) => {
   }
 });
 
-// Restore from backup
-router.post('/restore/:backupFileName', authMiddleware, async (req, res) => {
+// Delete backup
+router.delete('/backups/:backupFileName', authMiddleware, async (req, res) => {
   try {
     const { backupFileName } = req.params;
-    
+
     if (!backupFileName) {
       return res.status(400).json({
         error: 'Bad request',
@@ -305,25 +305,80 @@ router.post('/restore/:backupFileName', authMiddleware, async (req, res) => {
       });
     }
 
-    const restoredConfig = await configService.restoreFromBackup(backupFileName);
-    
-    logger.info(`Configuration restored from backup by user: ${req.user.username} - ${backupFileName}`);
+    const success = await configService.deleteBackup(backupFileName);
 
-    // Broadcast configuration update to connected clients
-    if (req.io) {
-      const safeConfig = { ...restoredConfig };
-      safeConfig.password = '***';
-      req.io.to('config-updates').emit('config-restored', { config: safeConfig, backupFileName });
+    if (success) {
+      logger.info(`Backup deleted by user: ${req.user.username} - ${backupFileName}`);
+      res.json({
+        success: true,
+        message: `Backup ${backupFileName} deleted successfully`
+      });
+    } else {
+      res.status(404).json({
+        error: 'Not found',
+        message: 'Backup file not found'
+      });
+    }
+  } catch (error) {
+    logger.error('Failed to delete backup:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message || 'Failed to delete backup'
+    });
+  }
+});
+
+// Restore from backup (supports both config-only and full database restore)
+router.post('/restore/:backupFileName', authMiddleware, async (req, res) => {
+  try {
+    const { backupFileName } = req.params;
+    const { restoreDatabase = true, restoreConfiguration = true } = req.body;
+
+    if (!backupFileName) {
+      return res.status(400).json({
+        error: 'Bad request',
+        message: 'Backup filename is required'
+      });
     }
 
-    // Don't send password in response
-    const safeConfig = { ...restoredConfig };
-    safeConfig.password = '***';
+    const restoreResult = await configService.restoreFromBackup(backupFileName, {
+      restoreDatabase,
+      restoreConfiguration
+    });
+
+    logger.info(`Backup restored by user: ${req.user.username} - ${backupFileName}`);
+    logger.info(`Restored items: ${restoreResult.restoredItems.join(', ')}`);
+
+    // Broadcast restore notification to connected clients
+    if (req.io) {
+      req.io.to('config-updates').emit('backup-restored', {
+        backupFileName,
+        backupType: restoreResult.backupType,
+        restoredItems: restoreResult.restoredItems,
+        message: restoreResult.message,
+        restoredBy: req.user.username,
+        timestamp: new Date().toISOString()
+      });
+
+      // If configuration was restored, also broadcast config update
+      if (restoreResult.restoredItems.includes('configuration')) {
+        try {
+          const currentConfig = await configService.getConfig();
+          const safeConfig = { ...currentConfig };
+          safeConfig.password = '***';
+          req.io.to('config-updates').emit('config-updated', safeConfig);
+        } catch (configError) {
+          logger.warn('Failed to broadcast config update after restore:', configError);
+        }
+      }
+    }
 
     res.json({
-      config: safeConfig,
+      success: true,
       backupFileName,
-      message: 'Configuration restored successfully'
+      backupType: restoreResult.backupType,
+      restoredItems: restoreResult.restoredItems,
+      message: restoreResult.message
     });
   } catch (error) {
     logger.error('Failed to restore from backup:', error);

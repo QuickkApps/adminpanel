@@ -51,6 +51,9 @@ window.showTab = function(tabName) {
         case 'users':
             refreshUserList();
             break;
+        case 'vpnServers':
+            refreshVpnServerList();
+            break;
         case 'online':
             refreshOnlineUsers();
             break;
@@ -1544,7 +1547,7 @@ class AdminPanel {
         // Real-time user connection events
         this.socket.on('user-connected', (data) => {
             console.log('👤 User connected:', data);
-            showAlert(`User ${data.username} connected from ${data.serverUrl}`, 'info');
+            // showAlert(`User ${data.username} connected from ${data.serverUrl}`, 'info'); // Disabled notification
 
             // Always refresh online users when someone connects
             refreshOnlineUsers();
@@ -1555,7 +1558,7 @@ class AdminPanel {
 
         this.socket.on('user-disconnected', (data) => {
             console.log('👤 User disconnected:', data);
-            showAlert(`User ${data.username} disconnected`, 'info');
+            // showAlert(`User ${data.username} disconnected`, 'info'); // Disabled notification
 
             // Always refresh online users when someone disconnects
             refreshOnlineUsers();
@@ -1789,82 +1792,104 @@ class AdminPanel {
             return;
         }
 
-        // Sort backups by timestamp (newest first)
+        // Sort backups by timestamp (newest first) - use parsedDate from server
         const sortedBackups = [...backups].sort((a, b) => {
-            // Extract timestamp from filename - handle both old and new formats
-            const extractTimestamp = (filename) => {
-                // New format: database_backup_12am-23min-34sec_07-19-25.json
-                const newMatch = filename.match(/database_backup_(\d+)(am|pm)-(\d+)min-(\d+)sec_(\d+)-(\d+)-(\d+)\.json$/);
-                if (newMatch) {
-                    const [, hour12, ampm, minutes, seconds, month, day, year] = newMatch;
-                    let hour24 = parseInt(hour12);
-                    if (ampm === 'pm' && hour24 !== 12) hour24 += 12;
-                    if (ampm === 'am' && hour24 === 12) hour24 = 0;
-
-                    const fullYear = 2000 + parseInt(year);
-                    return new Date(fullYear, parseInt(month) - 1, parseInt(day), hour24, parseInt(minutes), parseInt(seconds));
-                }
-
-                // Old format: remote_config_backup_2025-07-18T19-31-00-922Z.json
-                const oldMatch = filename.match(/remote_config_backup_(.+)\.json$/);
-                if (oldMatch) {
-                    const timestamp = oldMatch[1].replace(/-(\d{2})-(\d{2})-(\d{3})Z$/, ':$1:$2.$3Z');
-                    return new Date(timestamp);
-                }
-
-                return new Date(0); // Fallback for invalid format
-            };
-
-            const dateA = extractTimestamp(a.filename);
-            const dateB = extractTimestamp(b.filename);
+            const dateA = new Date(a.parsedDate || a.timestamp);
+            const dateB = new Date(b.parsedDate || b.timestamp);
             return dateB - dateA; // Newest first
         });
 
-        let html = '<div style="max-height: 400px; overflow-y: auto;">';
+        let html = '<div style="max-height: 500px; overflow-y: auto;">';
         sortedBackups.forEach((backup, index) => {
-            // Extract and format date from filename - handle both old and new formats
-            const extractTimestamp = (filename) => {
-                // New format: database_backup_12am-23min-34sec_07-19-25.json
-                const newMatch = filename.match(/database_backup_(\d+)(am|pm)-(\d+)min-(\d+)sec_(\d+)-(\d+)-(\d+)\.json$/);
-                if (newMatch) {
-                    const [, hour12, ampm, minutes, seconds, month, day, year] = newMatch;
-                    let hour24 = parseInt(hour12);
-                    if (ampm === 'pm' && hour24 !== 12) hour24 += 12;
-                    if (ampm === 'am' && hour24 === 12) hour24 = 0;
-
-                    const fullYear = 2000 + parseInt(year);
-                    return new Date(fullYear, parseInt(month) - 1, parseInt(day), hour24, parseInt(minutes), parseInt(seconds));
-                }
-
-                // Old format: remote_config_backup_2025-07-18T19-31-00-922Z.json
-                const oldMatch = filename.match(/remote_config_backup_(.+)\.json$/);
-                if (oldMatch) {
-                    const timestamp = oldMatch[1].replace(/-(\d{2})-(\d{2})-(\d{3})Z$/, ':$1:$2.$3Z');
-                    return new Date(timestamp);
-                }
-
-                return new Date();
-            };
-
-            const date = extractTimestamp(backup.filename).toLocaleString();
+            const date = new Date(backup.parsedDate || backup.timestamp).toLocaleString();
             const serialNumber = sortedBackups.length - index; // Serial number: oldest = 1, newest = highest number
 
+            // Get backup information
+            const info = backup.info || {};
+            const backupType = info.type || backup.backupType || 'unknown';
+            const hasDatabase = info.hasDatabase || false;
+            const hasConfiguration = info.hasConfiguration || false;
+            const statistics = info.statistics || {};
+
+            // Determine backup type display
+            let typeDisplay = '';
+            let typeColor = '#666';
+            if (backupType === 'full') {
+                typeDisplay = '🎯 Full Backup';
+                typeColor = '#28a745';
+            } else if (backupType === 'config-only') {
+                typeDisplay = '⚙️ Config Only';
+                typeColor = '#ffc107';
+            } else if (backupType === 'corrupted') {
+                typeDisplay = '❌ Corrupted';
+                typeColor = '#dc3545';
+            } else {
+                typeDisplay = '❓ Unknown';
+                typeColor = '#6c757d';
+            }
+
+            // Build statistics display
+            let statsHtml = '';
+            if (statistics.totalUsers !== undefined) {
+                statsHtml += `
+                    <div class="backup-stats" style="margin-top: 8px; font-size: 12px; color: #666;">
+                        <span style="margin-right: 12px;">👥 ${statistics.totalUsers} users</span>
+                        <span style="margin-right: 12px;">👤 ${statistics.totalAdmins} admins</span>
+                        <span style="margin-right: 12px;">💬 ${statistics.totalChatMessages} messages</span>
+                        <span style="margin-right: 12px;">🔒 ${statistics.totalVpnServers} VPN servers</span>
+                        <span>${info.fileSizeFormatted || 'Unknown size'}</span>
+                    </div>
+                `;
+            }
+
+            // Build restore options
+            let restoreOptionsHtml = '';
+            if (backupType === 'full') {
+                restoreOptionsHtml = `
+                    <div class="restore-options" style="margin-top: 8px;">
+                        <button class="btn btn-success btn-sm" onclick="restoreBackup('${backup.filename}', true, true)" title="Restore everything">
+                            🔄 Full Restore
+                        </button>
+                        <button class="btn btn-warning btn-sm" onclick="restoreBackup('${backup.filename}', false, true)" title="Restore configuration only">
+                            ⚙️ Config Only
+                        </button>
+                        <button class="btn btn-info btn-sm" onclick="restoreBackup('${backup.filename}', true, false)" title="Restore database only">
+                            🗄️ Database Only
+                        </button>
+                    </div>
+                `;
+            } else {
+                restoreOptionsHtml = `
+                    <div class="restore-options" style="margin-top: 8px;">
+                        <button class="btn btn-primary btn-sm" onclick="restoreBackup('${backup.filename}', false, true)">
+                            🔄 Restore Config
+                        </button>
+                    </div>
+                `;
+            }
+
             html += `
-                <div class="backup-item">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                        <div class="backup-info">
-                            <div class="backup-filename">
-                                <span style="color: #667eea; font-weight: bold; margin-right: 8px;">#${serialNumber}</span>
-                                ${backup.filename}
+                <div class="backup-item" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 12px; background: #f9f9f9;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                        <div class="backup-info" style="flex: 1; min-width: 300px;">
+                            <div class="backup-header" style="display: flex; align-items: center; margin-bottom: 6px;">
+                                <span style="color: #667eea; font-weight: bold; margin-right: 8px; font-size: 14px;">#${serialNumber}</span>
+                                <span style="color: ${typeColor}; font-weight: bold; margin-right: 12px;">${typeDisplay}</span>
+                                <span style="color: #333; font-size: 13px;">${backup.filename}</span>
                             </div>
-                            <div class="backup-date">Created: ${date}</div>
+                            <div class="backup-date" style="color: #666; font-size: 12px; margin-bottom: 4px;">
+                                📅 Created: ${date}
+                            </div>
+                            ${info.description ? `<div style="color: #666; font-size: 12px; margin-bottom: 4px;">📝 ${info.description}</div>` : ''}
+                            ${statsHtml}
+                            ${restoreOptionsHtml}
                         </div>
-                        <div class="backup-actions">
-                            <button class="btn btn-primary btn-sm" onclick="restoreBackup('${backup.filename}')">
-                                🔄 Restore
-                            </button>
-                            <button class="btn btn-secondary btn-sm" onclick="downloadBackup('${backup.filename}')">
+                        <div class="backup-actions" style="display: flex; flex-direction: column; gap: 6px;">
+                            <button class="btn btn-secondary btn-sm" onclick="downloadBackup('${backup.filename}')" title="Download backup file">
                                 💾 Download
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="deleteBackup('${backup.filename}')" title="Delete backup">
+                                🗑️ Delete
                             </button>
                         </div>
                     </div>
@@ -1876,30 +1901,79 @@ class AdminPanel {
         backupsList.innerHTML = html;
     }
 
-    async restoreBackup(backupFileName) {
-        if (!confirm(`Are you sure you want to restore from backup: ${backupFileName}?\n\nThis will overwrite the current configuration.`)) {
+    async restoreBackup(backupFileName, restoreDatabase = true, restoreConfiguration = true) {
+        // Build confirmation message based on what will be restored
+        let confirmMessage = `Are you sure you want to restore from backup: ${backupFileName}?\n\n`;
+        let restoreItems = [];
+
+        if (restoreDatabase && restoreConfiguration) {
+            confirmMessage += "This will restore EVERYTHING:\n• All database data (users, admins, chat, VPN servers)\n• Configuration settings\n\n⚠️ This will overwrite ALL current data!";
+            restoreItems = ['database', 'configuration'];
+        } else if (restoreDatabase) {
+            confirmMessage += "This will restore DATABASE ONLY:\n• Users, admins, chat conversations, VPN servers\n• Current configuration will be preserved\n\n⚠️ This will overwrite all database data!";
+            restoreItems = ['database'];
+        } else if (restoreConfiguration) {
+            confirmMessage += "This will restore CONFIGURATION ONLY:\n• API settings and configuration\n• Database data will be preserved\n\n⚠️ This will overwrite current configuration!";
+            restoreItems = ['configuration'];
+        } else {
+            this.showAlert('backupAlert', 'No restore options selected', 'error');
+            return;
+        }
+
+        if (!confirm(confirmMessage)) {
             return;
         }
 
         try {
+            this.showAlert('backupAlert', `🔄 Restoring ${restoreItems.join(' and ')} from backup...`, 'info');
+
             const response = await fetch(`/api/config/restore/${backupFileName}`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${this.token}`
-                }
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    restoreDatabase,
+                    restoreConfiguration
+                })
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                this.showAlert('backupAlert', `Configuration restored from: ${backupFileName}`, 'success');
-                this.loadConfig(); // Reload current config
-                this.loadStatus(); // Reload status
+                const restoredItems = data.restoredItems || [];
+                const backupType = data.backupType || 'unknown';
+
+                let successMessage = `✅ Successfully restored ${restoredItems.join(' and ')} from backup!\n\n`;
+                successMessage += `📁 Backup: ${backupFileName}\n`;
+                successMessage += `📊 Type: ${backupType}\n`;
+                successMessage += `🔄 Restored: ${restoredItems.join(', ')}`;
+
+                this.showAlert('backupAlert', successMessage, 'success');
+
+                // Reload relevant data based on what was restored
+                if (restoredItems.includes('configuration')) {
+                    this.loadConfig(); // Reload current config
+                    this.loadStatus(); // Reload status
+                }
+
+                if (restoredItems.includes('database')) {
+                    // Refresh any database-related displays
+                    this.refreshOnlineUsers();
+                    this.updateDashboardStats();
+                }
+
+                // Reload backups list to show any new backups created during restore
+                setTimeout(() => {
+                    this.loadBackups();
+                }, 1000);
+
             } else {
-                this.showAlert('backupAlert', data.message || 'Failed to restore backup', 'error');
+                this.showAlert('backupAlert', `❌ Restore failed: ${data.message || 'Unknown error'}`, 'error');
             }
         } catch (error) {
-            this.showAlert('backupAlert', 'Network error: ' + error.message, 'error');
+            this.showAlert('backupAlert', `❌ Network error during restore: ${error.message}`, 'error');
         }
     }
 
@@ -1920,12 +1994,38 @@ class AdminPanel {
                 link.click();
                 document.body.removeChild(link);
 
-                this.showAlert('backupAlert', `Downloading: ${backupFileName}`, 'success');
+                this.showAlert('backupAlert', `📥 Downloading: ${backupFileName}`, 'success');
             } else {
-                this.showAlert('backupAlert', 'Failed to download backup', 'error');
+                this.showAlert('backupAlert', '❌ Failed to download backup', 'error');
             }
         } catch (error) {
-            this.showAlert('backupAlert', 'Network error: ' + error.message, 'error');
+            this.showAlert('backupAlert', `❌ Network error: ${error.message}`, 'error');
+        }
+    }
+
+    async deleteBackup(backupFileName) {
+        if (!confirm(`⚠️ Are you sure you want to DELETE this backup?\n\n📁 ${backupFileName}\n\n❌ This action cannot be undone!`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/config/backups/${backupFileName}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                this.showAlert('backupAlert', `🗑️ Backup deleted: ${backupFileName}`, 'success');
+                this.loadBackups(); // Reload backups list
+            } else {
+                this.showAlert('backupAlert', `❌ Failed to delete backup: ${data.message || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            this.showAlert('backupAlert', `❌ Network error: ${error.message}`, 'error');
         }
     }
 
@@ -2446,10 +2546,10 @@ function loadBackups() {
     }
 }
 
-function restoreBackup(backupFileName) {
-    console.log('restoreBackup button clicked:', backupFileName);
+function restoreBackup(backupFileName, restoreDatabase = true, restoreConfiguration = true) {
+    console.log('restoreBackup button clicked:', backupFileName, { restoreDatabase, restoreConfiguration });
     if (window.adminPanel && window.adminPanel.restoreBackup) {
-        window.adminPanel.restoreBackup(backupFileName);
+        window.adminPanel.restoreBackup(backupFileName, restoreDatabase, restoreConfiguration);
     } else {
         console.error('adminPanel.restoreBackup not found');
         alert('Error: restoreBackup function not available');
@@ -2463,6 +2563,16 @@ function downloadBackup(backupFileName) {
     } else {
         console.error('adminPanel.downloadBackup not found');
         alert('Error: downloadBackup function not available');
+    }
+}
+
+function deleteBackup(backupFileName) {
+    console.log('deleteBackup button clicked:', backupFileName);
+    if (window.adminPanel && window.adminPanel.deleteBackup) {
+        window.adminPanel.deleteBackup(backupFileName);
+    } else {
+        console.error('adminPanel.deleteBackup not found');
+        alert('Error: deleteBackup function not available');
     }
 }
 
@@ -2982,6 +3092,9 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('createBackup available:', typeof window.createBackup);
     console.log('logout available:', typeof window.logout);
     console.log('deleteAdmin available:', typeof window.deleteAdmin);
+
+    // Set up OVPN file upload functionality
+    setupOvpnFileUpload();
 });
 
 // ===== CHAT FUNCTIONALITY =====
@@ -3860,3 +3973,720 @@ window.showTab = function(tabName) {
         }, 100);
     }
 };
+
+// ===== VPN SERVER MANAGEMENT FUNCTIONS =====
+
+let vpnServers = [];
+let filteredVpnServers = [];
+
+// Refresh VPN server list
+window.refreshVpnServerList = async function() {
+    console.log('🔄 Refreshing VPN server list...');
+    const tbody = document.getElementById('vpnServerTableBody');
+    const serverCount = document.getElementById('serverCount');
+
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; color: var(--text-muted);">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    Loading VPN servers...
+                </td>
+            </tr>
+        `;
+    }
+
+    try {
+        const response = await apiCall('/api/vpn-servers');
+        vpnServers = response.data || [];
+        filteredVpnServers = [...vpnServers];
+        displayVpnServers(filteredVpnServers);
+        updateServerCountryFilter();
+
+        if (serverCount) {
+            serverCount.textContent = `${vpnServers.length} server(s) total`;
+        }
+    } catch (error) {
+        console.error('Error loading VPN servers:', error);
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" style="text-align: center; color: var(--error-color);">
+                        <i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>
+                        Error loading VPN servers: ${error.message}
+                    </td>
+                </tr>
+            `;
+        }
+    }
+};
+
+// Display VPN servers in table
+function displayVpnServers(servers) {
+    const tbody = document.getElementById('vpnServerTableBody');
+    if (!tbody) return;
+
+    if (servers.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; color: var(--text-muted);">
+                    <i class="fas fa-server" style="margin-right: 8px;"></i>
+                    No VPN servers found
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = servers.map(server => `
+        <tr>
+            <td>
+                <div style="font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                    ${server.is_featured ? '<i class="fas fa-star" style="color: #ffc107; font-size: 14px;" title="Featured Server"></i>' : ''}
+                    ${escapeHtml(server.name)}
+                </div>
+                ${server.location ? `<div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(server.location)}</div>` : ''}
+            </td>
+            <td style="font-family: monospace; color: var(--text-secondary);">${escapeHtml(server.hostname)}</td>
+            <td style="font-family: monospace; color: var(--text-secondary);">${escapeHtml(server.ip)}:${server.port}</td>
+            <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span>${escapeHtml(server.country_long)}</span>
+                    <span style="font-size: 12px; color: var(--text-muted);">(${escapeHtml(server.country_short)})</span>
+                </div>
+            </td>
+            <td>
+                <span style="text-transform: uppercase; font-weight: 500; color: var(--accent-color);">${server.protocol}</span>
+            </td>
+            <td>
+                <span class="user-status ${server.is_active ? 'online' : 'offline'}">
+                    <i class="fas fa-circle" style="font-size: 8px;"></i>
+                    ${server.is_active ? 'Active' : 'Inactive'}
+                </span>
+            </td>
+            <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 40px; height: 6px; background: var(--dark-surface-light); border-radius: 3px; overflow: hidden;">
+                        <div style="width: ${server.server_load}%; height: 100%; background: ${server.server_load > 80 ? 'var(--error-color)' : server.server_load > 60 ? 'var(--warning-color)' : 'var(--success-color)'}; transition: width 0.3s ease;"></div>
+                    </div>
+                    <span style="font-size: 12px; color: var(--text-muted);">${server.server_load.toFixed(1)}%</span>
+                </div>
+            </td>
+            <td>
+                <div style="display: flex; gap: 4px;">
+                    <button class="btn btn-secondary btn-sm" onclick="editVpnServer(${server.id})" title="Edit Server">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn ${server.is_active ? 'btn-warning' : 'btn-success'} btn-sm" onclick="toggleVpnServerStatus(${server.id})" title="${server.is_active ? 'Deactivate' : 'Activate'} Server">
+                        <i class="fas fa-${server.is_active ? 'pause' : 'play'}"></i>
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteVpnServer(${server.id}, '${escapeHtml(server.name)}')" title="Delete Server">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Update country filter dropdown
+function updateServerCountryFilter() {
+    const countryFilter = document.getElementById('serverCountryFilter');
+    if (!countryFilter) return;
+
+    const countries = [...new Set(vpnServers.map(server => server.country_short))].sort();
+
+    // Keep the "All Countries" option and add countries
+    countryFilter.innerHTML = '<option value="">All Countries</option>' +
+        countries.map(country => {
+            const countryName = vpnServers.find(s => s.country_short === country)?.country_long || country;
+            return `<option value="${country}">${countryName} (${country})</option>`;
+        }).join('');
+}
+
+// Filter VPN servers
+window.filterVpnServers = function() {
+    const searchTerm = document.getElementById('serverSearch')?.value.toLowerCase() || '';
+    const statusFilter = document.getElementById('serverStatusFilter')?.value || '';
+    const countryFilter = document.getElementById('serverCountryFilter')?.value || '';
+
+    filteredVpnServers = vpnServers.filter(server => {
+        const matchesSearch = !searchTerm ||
+            server.name.toLowerCase().includes(searchTerm) ||
+            server.hostname.toLowerCase().includes(searchTerm) ||
+            server.ip.includes(searchTerm);
+
+        const matchesStatus = !statusFilter || server.is_active.toString() === statusFilter;
+        const matchesCountry = !countryFilter || server.country_short === countryFilter;
+
+        return matchesSearch && matchesStatus && matchesCountry;
+    });
+
+    displayVpnServers(filteredVpnServers);
+
+    const serverCount = document.getElementById('serverCount');
+    if (serverCount) {
+        serverCount.textContent = `${filteredVpnServers.length} of ${vpnServers.length} server(s)`;
+    }
+};
+
+// Clear VPN server filters
+window.clearVpnServerFilters = function() {
+    document.getElementById('serverSearch').value = '';
+    document.getElementById('serverStatusFilter').value = '';
+    document.getElementById('serverCountryFilter').value = '';
+    filterVpnServers();
+};
+
+// Show add VPN server modal
+window.showAddVpnServerModal = function() {
+    document.getElementById('vpnServerModalTitle').textContent = 'Add VPN Server';
+    document.getElementById('vpnServerSaveText').textContent = 'Save Server';
+    document.getElementById('vpnServerForm').reset();
+    document.getElementById('vpnServerId').value = '';
+    document.getElementById('serverPort').value = '1194';
+    document.getElementById('serverProtocol').value = 'udp';
+    document.getElementById('serverSpeed').value = '0';
+    document.getElementById('serverMaxConnections').value = '100';
+    document.getElementById('serverIsActive').checked = true;
+    document.getElementById('serverIsFeatured').checked = true; // New servers are featured by default
+    showModal('vpnServerModal');
+};
+
+// Edit VPN server
+window.editVpnServer = async function(serverId) {
+    try {
+        const response = await apiCall(`/api/vpn-servers/${serverId}`);
+        const server = response.data;
+
+        document.getElementById('vpnServerModalTitle').textContent = 'Edit VPN Server';
+        document.getElementById('vpnServerSaveText').textContent = 'Update Server';
+
+        // Populate form fields
+        document.getElementById('vpnServerId').value = server.id;
+        document.getElementById('serverName').value = server.name;
+        document.getElementById('serverHostname').value = server.hostname;
+        document.getElementById('serverIp').value = server.ip;
+        document.getElementById('serverPort').value = server.port;
+        document.getElementById('serverProtocol').value = server.protocol;
+        document.getElementById('serverCountryLong').value = server.country_long;
+        document.getElementById('serverCountryShort').value = server.country_short;
+        document.getElementById('serverLocation').value = server.location || '';
+        document.getElementById('serverUsername').value = server.username || '';
+        document.getElementById('serverPassword').value = ''; // Don't populate password for security
+        document.getElementById('serverSpeed').value = server.speed;
+        document.getElementById('serverMaxConnections').value = server.max_connections;
+
+        // Decode Base64 OpenVPN configuration for editing
+        try {
+            document.getElementById('serverConfig').value = atob(server.openvpn_config_base64);
+            console.log('✅ OpenVPN configuration Base64 decoded successfully for editing');
+        } catch (error) {
+            console.error('❌ Error decoding OpenVPN configuration:', error);
+            document.getElementById('serverConfig').value = server.openvpn_config_base64; // Fallback to raw data
+        }
+
+        document.getElementById('serverDescription').value = server.description || '';
+        document.getElementById('serverIsActive').checked = server.is_active;
+        document.getElementById('serverIsFeatured').checked = server.is_featured;
+
+        showModal('vpnServerModal');
+    } catch (error) {
+        console.error('Error loading VPN server for edit:', error);
+        alert('Error loading server details: ' + error.message);
+    }
+};
+
+// Save VPN server (create or update)
+window.saveVpnServer = async function() {
+    const form = document.getElementById('vpnServerForm');
+    const formData = new FormData(form);
+    const serverId = document.getElementById('vpnServerId').value;
+
+    // Convert FormData to object
+    const serverData = {};
+    for (let [key, value] of formData.entries()) {
+        if (key === 'is_active') {
+            serverData[key] = document.getElementById('serverIsActive').checked;
+        } else if (key === 'is_featured') {
+            serverData[key] = document.getElementById('serverIsFeatured').checked;
+        } else if (key === 'port' || key === 'speed' || key === 'max_connections') {
+            serverData[key] = parseInt(value) || (key === 'port' ? 1194 : key === 'max_connections' ? 100 : 0);
+        } else if (value.trim()) {
+            serverData[key] = value.trim();
+        }
+    }
+
+    // Validate required fields (only name, country code, and OpenVPN config are required)
+    if (!serverData.name || !serverData.country_short || !serverData.openvpn_config_base64) {
+        alert('Please fill in all required fields:\n- Server Name\n- Country Code\n- OpenVPN Configuration');
+        return;
+    }
+
+    // Base64 encode the OpenVPN configuration
+    try {
+        serverData.openvpn_config_base64 = btoa(serverData.openvpn_config_base64);
+        console.log('✅ OpenVPN configuration Base64 encoded successfully');
+    } catch (error) {
+        console.error('❌ Error encoding OpenVPN configuration:', error);
+        alert('Error encoding OpenVPN configuration. Please check the configuration format.');
+        return;
+    }
+
+    try {
+        let response;
+        if (serverId) {
+            // Update existing server
+            response = await apiCall(`/api/vpn-servers/${serverId}`, {
+                method: 'PUT',
+                body: JSON.stringify(serverData)
+            });
+        } else {
+            // Create new server
+            response = await apiCall('/api/vpn-servers', {
+                method: 'POST',
+                body: JSON.stringify(serverData)
+            });
+        }
+
+        console.log('✅ VPN server saved successfully:', response);
+        closeModal('vpnServerModal');
+        refreshVpnServerList();
+
+        // Show success message
+        showAlert('success', response.message || `VPN server ${serverId ? 'updated' : 'created'} successfully!`);
+    } catch (error) {
+        console.error('Error saving VPN server:', error);
+        showAlert('error', 'Error saving VPN server: ' + error.message);
+    }
+};
+
+// Toggle VPN server status
+window.toggleVpnServerStatus = async function(serverId) {
+    try {
+        const response = await apiCall(`/api/vpn-servers/${serverId}/toggle`, {
+            method: 'PATCH'
+        });
+
+        console.log('✅ VPN server status toggled:', response);
+        refreshVpnServerList();
+        showAlert('success', response.message);
+    } catch (error) {
+        console.error('Error toggling VPN server status:', error);
+        showAlert('error', 'Error toggling server status: ' + error.message);
+    }
+};
+
+// Delete VPN server
+window.deleteVpnServer = async function(serverId, serverName) {
+    if (!confirm(`Are you sure you want to delete the VPN server "${serverName}"?\n\nThis action cannot be undone and will immediately remove the server from all client applications.`)) {
+        return;
+    }
+
+    try {
+        const response = await apiCall(`/api/vpn-servers/${serverId}`, {
+            method: 'DELETE'
+        });
+
+        console.log('✅ VPN server deleted:', response);
+        refreshVpnServerList();
+        showAlert('success', response.message || 'VPN server deleted successfully!');
+    } catch (error) {
+        console.error('Error deleting VPN server:', error);
+        showAlert('error', 'Error deleting VPN server: ' + error.message);
+    }
+};
+
+// Helper function to show alerts
+function showAlert(type, message) {
+    // Create alert element
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type}`;
+    alert.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+        ${message}
+    `;
+
+    // Insert at top of VPN servers tab
+    const vpnServersTab = document.getElementById('vpnServersTab');
+    if (vpnServersTab) {
+        vpnServersTab.insertBefore(alert, vpnServersTab.firstChild);
+
+        // Remove alert after 5 seconds
+        setTimeout(() => {
+            if (alert.parentNode) {
+                alert.parentNode.removeChild(alert);
+            }
+        }, 5000);
+    }
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// OVPN File Upload and Parsing Functionality
+function setupOvpnFileUpload() {
+    const fileInput = document.getElementById('ovpnFileInput');
+    const uploadBtn = document.getElementById('uploadOvpnBtn');
+    const clearBtn = document.getElementById('clearOvpnBtn');
+    const fileName = document.getElementById('ovpnFileName');
+    const configTextarea = document.getElementById('serverConfig');
+    const urlInput = document.getElementById('ovpnUrlInput');
+    const downloadBtn = document.getElementById('downloadOvpnBtn');
+
+    if (!fileInput || !uploadBtn || !clearBtn || !fileName || !configTextarea) {
+        console.warn('⚠️ OVPN upload elements not found, skipping setup');
+        return;
+    }
+
+    console.log('🔧 Setting up OVPN file upload and URL download functionality');
+
+    // Upload button click handler
+    uploadBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // File input change handler
+    fileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            handleOvpnFileUpload(file);
+        }
+    });
+
+    // Clear button click handler
+    clearBtn.addEventListener('click', () => {
+        clearOvpnFile();
+    });
+
+    // URL download functionality
+    if (urlInput && downloadBtn) {
+        downloadBtn.addEventListener('click', () => {
+            const url = urlInput.value.trim();
+            if (url) {
+                handleOvpnUrlDownload(url);
+            } else {
+                alert('Please enter a valid URL');
+            }
+        });
+
+        // Allow Enter key to trigger download
+        urlInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                downloadBtn.click();
+            }
+        });
+    }
+}
+
+function handleOvpnFileUpload(file) {
+    console.log('📁 Processing OVPN file:', file.name);
+
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.ovpn') && !file.name.toLowerCase().endsWith('.conf')) {
+        alert('Please select a valid .ovpn or .conf file');
+        return;
+    }
+
+    // Validate file size (max 1MB)
+    if (file.size > 1024 * 1024) {
+        alert('File size too large. Please select a file smaller than 1MB');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const ovpnContent = e.target.result;
+            parseOvpnFile(ovpnContent, file.name);
+        } catch (error) {
+            console.error('❌ Error reading OVPN file:', error);
+            alert('Error reading file. Please try again.');
+        }
+    };
+    reader.readAsText(file);
+}
+
+async function handleOvpnUrlDownload(url) {
+    console.log('🌐 Downloading OVPN file from URL:', url);
+
+    // Validate URL format
+    try {
+        new URL(url);
+    } catch (error) {
+        alert('Please enter a valid URL');
+        return;
+    }
+
+    // Show loading state
+    const downloadBtn = document.getElementById('downloadOvpnBtn');
+    const originalText = downloadBtn.innerHTML;
+    downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right: 6px;"></i>Downloading...';
+    downloadBtn.disabled = true;
+
+    try {
+        showNotification('Downloading OVPN file...', 'info');
+
+        // Make request to backend to download the file
+        const response = await fetch('/api/download-ovpn', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ url: url })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to download OVPN file');
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.content) {
+            console.log('✅ OVPN file downloaded successfully');
+
+            // Extract filename from URL
+            const urlObj = new URL(url);
+            const filename = urlObj.pathname.split('/').pop() || 'downloaded.ovpn';
+
+            // Parse the downloaded content
+            parseOvpnFile(data.content, filename);
+
+            showNotification('OVPN file downloaded and parsed successfully!', 'success');
+
+            // Clear the URL input
+            document.getElementById('ovpnUrlInput').value = '';
+
+        } else {
+            throw new Error(data.message || 'Invalid response from server');
+        }
+
+    } catch (error) {
+        console.error('❌ Error downloading OVPN file:', error);
+        showNotification(`Error downloading OVPN file: ${error.message}`, 'error');
+        alert(`Error downloading OVPN file: ${error.message}`);
+    } finally {
+        // Restore button state
+        downloadBtn.innerHTML = originalText;
+        downloadBtn.disabled = false;
+    }
+}
+
+function parseOvpnFile(content, fileName) {
+    console.log('🔍 Parsing OVPN file content...');
+
+    try {
+        // Parse the OVPN configuration
+        const parsedData = parseOvpnConfiguration(content);
+
+        // Auto-populate form fields
+        populateFormFromOvpn(parsedData, content);
+
+        // Update UI
+        document.getElementById('ovpnFileName').textContent = `📁 ${fileName}`;
+        document.getElementById('ovpnFileName').style.display = 'inline';
+        document.getElementById('clearOvpnBtn').style.display = 'inline-block';
+
+        console.log('✅ OVPN file parsed and form populated successfully');
+
+        // Show success message
+        showNotification('OVPN file uploaded and parsed successfully!', 'success');
+
+    } catch (error) {
+        console.error('❌ Error parsing OVPN file:', error);
+        alert(`Error parsing OVPN file: ${error.message}`);
+    }
+}
+
+function parseOvpnConfiguration(content) {
+    const lines = content.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#'));
+    const config = {};
+
+    for (const line of lines) {
+        // Parse remote server
+        if (line.startsWith('remote ')) {
+            const parts = line.split(' ');
+            config.hostname = parts[1];
+            config.port = parts[2] ? parseInt(parts[2]) : 1194;
+        }
+
+        // Parse protocol
+        if (line.startsWith('proto ')) {
+            config.protocol = line.split(' ')[1].toUpperCase();
+        }
+
+        // Parse device type
+        if (line.startsWith('dev ')) {
+            config.device = line.split(' ')[1];
+        }
+
+        // Parse cipher
+        if (line.startsWith('cipher ')) {
+            config.cipher = line.split(' ')[1];
+        }
+
+        // Parse authentication
+        if (line.startsWith('auth ')) {
+            config.auth = line.split(' ')[1];
+        }
+
+        // Parse compression
+        if (line.includes('comp-lzo') || line.includes('compress')) {
+            config.compression = true;
+        }
+
+        // Parse verb level
+        if (line.startsWith('verb ')) {
+            config.verbosity = parseInt(line.split(' ')[1]);
+        }
+    }
+
+    // Validate required fields
+    if (!config.hostname) {
+        throw new Error('No remote server found in OVPN file');
+    }
+
+    return config;
+}
+
+function populateFormFromOvpn(parsedData, fullContent) {
+    // Auto-populate server name if not set
+    const serverNameField = document.getElementById('serverName');
+    if (serverNameField && !serverNameField.value) {
+        serverNameField.value = parsedData.hostname || 'Imported Server';
+    }
+
+    // Auto-populate hostname
+    const hostnameField = document.getElementById('serverHostname');
+    if (hostnameField && parsedData.hostname) {
+        hostnameField.value = parsedData.hostname;
+    }
+
+    // Auto-populate port
+    const portField = document.getElementById('serverPort');
+    if (portField && parsedData.port) {
+        portField.value = parsedData.port;
+    }
+
+    // Auto-populate protocol
+    const protocolField = document.getElementById('serverProtocol');
+    if (protocolField && parsedData.protocol) {
+        protocolField.value = parsedData.protocol;
+    }
+
+    // Set the full configuration content
+    const configField = document.getElementById('serverConfig');
+    if (configField) {
+        configField.value = fullContent;
+    }
+
+    // Try to extract country from hostname
+    const countryField = document.getElementById('serverCountry');
+    if (countryField && parsedData.hostname && !countryField.value) {
+        const extractedCountry = extractCountryFromHostname(parsedData.hostname);
+        if (extractedCountry) {
+            countryField.value = extractedCountry;
+        }
+    }
+
+    console.log('📝 Form populated with parsed data:', parsedData);
+}
+
+function extractCountryFromHostname(hostname) {
+    // Common country code patterns in VPN hostnames
+    const countryPatterns = {
+        'us': 'US', 'usa': 'US', 'united-states': 'US',
+        'uk': 'GB', 'gb': 'GB', 'britain': 'GB', 'england': 'GB',
+        'de': 'DE', 'germany': 'DE', 'deutschland': 'DE',
+        'fr': 'FR', 'france': 'FR',
+        'nl': 'NL', 'netherlands': 'NL', 'holland': 'NL',
+        'ca': 'CA', 'canada': 'CA',
+        'au': 'AU', 'australia': 'AU',
+        'jp': 'JP', 'japan': 'JP',
+        'sg': 'SG', 'singapore': 'SG',
+        'hk': 'HK', 'hongkong': 'HK', 'hong-kong': 'HK',
+        'in': 'IN', 'india': 'IN',
+        'br': 'BR', 'brazil': 'BR',
+        'mx': 'MX', 'mexico': 'MX',
+        'es': 'ES', 'spain': 'ES',
+        'it': 'IT', 'italy': 'IT',
+        'se': 'SE', 'sweden': 'SE',
+        'no': 'NO', 'norway': 'NO',
+        'dk': 'DK', 'denmark': 'DK',
+        'fi': 'FI', 'finland': 'FI',
+        'ch': 'CH', 'switzerland': 'CH',
+        'at': 'AT', 'austria': 'AT',
+        'be': 'BE', 'belgium': 'BE',
+        'pl': 'PL', 'poland': 'PL',
+        'cz': 'CZ', 'czech': 'CZ',
+        'ru': 'RU', 'russia': 'RU',
+        'tr': 'TR', 'turkey': 'TR',
+        'il': 'IL', 'israel': 'IL',
+        'ae': 'AE', 'uae': 'AE', 'emirates': 'AE',
+        'za': 'ZA', 'south-africa': 'ZA',
+        'kr': 'KR', 'korea': 'KR', 'south-korea': 'KR',
+        'tw': 'TW', 'taiwan': 'TW',
+        'th': 'TH', 'thailand': 'TH',
+        'my': 'MY', 'malaysia': 'MY',
+        'id': 'ID', 'indonesia': 'ID',
+        'ph': 'PH', 'philippines': 'PH',
+        'vn': 'VN', 'vietnam': 'VN'
+    };
+
+    const lowerHostname = hostname.toLowerCase();
+
+    for (const [pattern, countryCode] of Object.entries(countryPatterns)) {
+        if (lowerHostname.includes(pattern)) {
+            return countryCode;
+        }
+    }
+
+    return null;
+}
+
+function clearOvpnFile() {
+    // Clear file input
+    document.getElementById('ovpnFileInput').value = '';
+
+    // Hide UI elements
+    document.getElementById('ovpnFileName').style.display = 'none';
+    document.getElementById('clearOvpnBtn').style.display = 'none';
+
+    // Clear configuration textarea
+    document.getElementById('serverConfig').value = '';
+
+    console.log('🗑️ OVPN file cleared');
+    showNotification('OVPN file cleared', 'info');
+}
+
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} alert-dismissible fade show`;
+    notification.style.position = 'fixed';
+    notification.style.top = '20px';
+    notification.style.right = '20px';
+    notification.style.zIndex = '9999';
+    notification.style.minWidth = '300px';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    // Add to page
+    document.body.appendChild(notification);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 5000);
+}

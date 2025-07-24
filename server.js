@@ -56,6 +56,8 @@ app.use(cors({
     "http://localhost:3001",
     "http://127.0.0.1:3001",
     "http://10.0.2.2:3001", // Android emulator
+    "https://web-production-6358.up.railway.app", // Railway deployment
+    "https://anume-admin.vercel.app", // Vercel deployment (if used)
     "*" // Allow all origins for development (remove in production)
   ],
   credentials: true
@@ -80,6 +82,7 @@ app.use((req, res, next) => {
 // API Routes
 const logsRoutes = require('./routes/logs');
 const chatRoutes = require('./routes/chat');
+const vpnServersRoutes = require('./routes/vpnServers');
 app.use('/api/auth', authRoutes);
 
 // Config routes - some need auth, some don't
@@ -88,6 +91,151 @@ app.use('/api/config', configRoutes);
 // User and admin management routes
 app.use('/api/users', usersRoutes);
 app.use('/api/admins', adminsRoutes);
+
+// OVPN file download endpoint (no auth required for Flutter app access)
+app.post('/api/download-ovpn', async (req, res) => {
+    try {
+        const { url } = req.body;
+
+        if (!url) {
+            return res.status(400).json({
+                success: false,
+                message: 'URL is required'
+            });
+        }
+
+        // Validate URL format
+        let validUrl;
+        try {
+            validUrl = new URL(url);
+        } catch (urlError) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid URL format'
+            });
+        }
+
+        // Only allow HTTP/HTTPS protocols
+        if (!['http:', 'https:'].includes(validUrl.protocol)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Only HTTP and HTTPS URLs are allowed'
+            });
+        }
+
+        console.log(`🌐 Downloading OVPN file from: ${url}`);
+
+        // Download the file
+        const https = require('https');
+        const http = require('http');
+
+        const client = validUrl.protocol === 'https:' ? https : http;
+
+        const downloadPromise = new Promise((resolve, reject) => {
+            const options = {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept': 'text/plain, application/octet-stream, */*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'identity',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
+                }
+            };
+
+            const request = client.get(url, options, (response) => {
+                // Handle redirects
+                if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+                    console.log(`🔄 Following redirect to: ${response.headers.location}`);
+                    const redirectUrl = response.headers.location;
+                    const redirectClient = redirectUrl.startsWith('https:') ? https : http;
+                    redirectClient.get(redirectUrl, options, (redirectResponse) => {
+                        handleResponse(redirectResponse, resolve, reject);
+                    }).on('error', reject);
+                    return;
+                }
+
+                handleResponse(response, resolve, reject);
+            });
+
+            function handleResponse(response, resolve, reject) {
+                // Check if response is successful
+                if (response.statusCode !== 200) {
+                    reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
+                    return;
+                }
+
+                // Check content type (optional, but good practice)
+                const contentType = response.headers['content-type'];
+                if (contentType && !contentType.includes('text') && !contentType.includes('application/octet-stream')) {
+                    console.warn(`⚠️ Unexpected content type: ${contentType}`);
+                }
+
+                // Check content length
+                const contentLength = parseInt(response.headers['content-length'] || '0');
+                if (contentLength > 1024 * 1024) { // 1MB limit
+                    reject(new Error('File too large (max 1MB)'));
+                    return;
+                }
+
+                let data = '';
+                response.setEncoding('utf8');
+
+                response.on('data', (chunk) => {
+                    data += chunk;
+                    // Additional size check during download
+                    if (data.length > 1024 * 1024) {
+                        reject(new Error('File too large (max 1MB)'));
+                        return;
+                    }
+                });
+
+                response.on('end', () => {
+                    resolve(data);
+                });
+            }
+
+            request.on('error', (error) => {
+                reject(error);
+            });
+
+            // Set timeout
+            request.setTimeout(30000, () => {
+                request.destroy();
+                reject(new Error('Download timeout (30 seconds)'));
+            });
+        });
+
+        const ovpnContent = await downloadPromise;
+
+        // Basic validation that it's an OVPN file
+        if (!ovpnContent.includes('client') && !ovpnContent.includes('remote')) {
+            return res.status(400).json({
+                success: false,
+                message: 'Downloaded file does not appear to be a valid OpenVPN configuration'
+            });
+        }
+
+        console.log(`✅ Successfully downloaded OVPN file (${ovpnContent.length} bytes)`);
+
+        res.json({
+            success: true,
+            content: ovpnContent,
+            size: ovpnContent.length,
+            url: url
+        });
+
+    } catch (error) {
+        console.error('❌ Error downloading OVPN file:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to download OVPN file'
+        });
+    }
+});
+
+// VPN server management routes
+app.use('/api/vpn-servers', vpnServersRoutes);
 
 // Chat routes
 app.use('/api/chat', chatRoutes);
@@ -1042,9 +1190,10 @@ const startServer = async () => {
     // Clear all online statuses from previous sessions
     await UserService.clearAllOnlineStatuses();
 
-    // Start server
-    server.listen(PORT, () => {
+    // Start server - listen on all interfaces to allow Android emulator access
+    server.listen(PORT, '0.0.0.0', () => {
       logger.info(`Anume Admin Panel server running on port ${PORT}`);
+      logger.info(`Server accessible at: http://localhost:${PORT} and http://10.0.2.2:${PORT} (Android emulator)`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`WebSocket enabled: ${process.env.WEBSOCKET_ENABLED !== 'false'}`);
       logger.info('Database initialized successfully');

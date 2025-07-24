@@ -20,6 +20,7 @@ const UserSession = require('./models/UserSession')(sequelize);
 const AdminSession = require('./models/AdminSession')(sequelize);
 const ChatConversation = require('./models/ChatConversation')(sequelize);
 const ChatMessage = require('./models/ChatMessage')(sequelize);
+const VpnServer = require('./models/VpnServer')(sequelize);
 
 // Define associations
 Admin.hasMany(AdminSession, { foreignKey: 'admin_id', as: 'sessions' });
@@ -36,6 +37,7 @@ const models = {
   AdminSession,
   ChatConversation,
   ChatMessage,
+  VpnServer,
 };
 
 // Initialize associations for chat models
@@ -44,6 +46,9 @@ if (ChatConversation.associate) {
 }
 if (ChatMessage.associate) {
   ChatMessage.associate(models);
+}
+if (VpnServer.associate) {
+  VpnServer.associate(models);
 }
 
 // Database initialization
@@ -108,6 +113,7 @@ module.exports = {
     AdminSession,
     ChatConversation,
     ChatMessage,
+    VpnServer,
   },
   initializeDatabase,
 };

@@ -1583,6 +1583,10 @@
                     <i class="fas fa-users"></i>
                     User Management
                 </button>
+                <button class="nav-tab" onclick="showTab('vpnServers')">
+                    <i class="fas fa-server"></i>
+                    VPN Servers
+                </button>
                 <button class="nav-tab" onclick="showTab('online')" style="display: none;">
                     <i class="fas fa-circle" style="color: var(--success-color);"></i>
                     Online Users
@@ -1871,6 +1875,86 @@
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VPN Servers Tab -->
+            <div id="vpnServersTab" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-server card-icon"></i>
+                            VPN Server Management
+                        </h2>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-primary btn-sm" onclick="showAddVpnServerModal()">
+                                <i class="fas fa-plus"></i>
+                                Add Server
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="refreshVpnServerList()">
+                                <i class="fas fa-sync"></i>
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Server Filters -->
+                    <div style="padding: 16px; background: var(--dark-surface-light); border-radius: 8px; margin-bottom: 16px;">
+                        <div class="grid grid-3" style="gap: 16px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="serverSearch">Search Servers</label>
+                                <input type="text" id="serverSearch" placeholder="Search by name or hostname..." onkeyup="filterVpnServers()">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="serverStatusFilter">Status Filter</label>
+                                <select id="serverStatusFilter" onchange="filterVpnServers()">
+                                    <option value="">All Status</option>
+                                    <option value="true">Active</option>
+                                    <option value="false">Inactive</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="serverCountryFilter">Country Filter</label>
+                                <select id="serverCountryFilter" onchange="filterVpnServers()">
+                                    <option value="">All Countries</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px; display: flex; gap: 8px;">
+                            <button class="btn btn-secondary btn-sm" onclick="clearVpnServerFilters()">
+                                <i class="fas fa-times"></i>
+                                Clear Filters
+                            </button>
+                            <span id="serverCount" style="color: var(--text-secondary); font-size: 14px; line-height: 32px;"></span>
+                        </div>
+                    </div>
+
+                    <div id="vpnServerListContainer">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Hostname</th>
+                                        <th>IP Address</th>
+                                        <th>Country</th>
+                                        <th>Protocol</th>
+                                        <th>Status</th>
+                                        <th>Load</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vpnServerTableBody">
+                                    <tr>
+                                        <td colspan="8" style="text-align: center; color: var(--text-muted);">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                            Loading VPN servers...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -2252,6 +2336,199 @@
                 <div id="logsContent">
                     <!-- Logs content will be populated here -->
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VPN Server Modal -->
+    <div id="vpnServerModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-server"></i>
+                    <span id="vpnServerModalTitle">Add VPN Server</span>
+                </h2>
+                <button class="modal-close" onclick="closeModal('vpnServerModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="vpnServerForm">
+                    <input type="hidden" id="vpnServerId" name="id">
+
+                    <div class="grid grid-2" style="gap: 16px;">
+                        <div class="form-group">
+                            <label for="serverName">
+                                <i class="fas fa-tag" style="margin-right: 8px;"></i>
+                                Server Name *
+                            </label>
+                            <input type="text" id="serverName" name="name" placeholder="My VPN Server" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverHostname">
+                                <i class="fas fa-globe" style="margin-right: 8px;"></i>
+                                Hostname
+                            </label>
+                            <input type="text" id="serverHostname" name="hostname" placeholder="vpn.example.com">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverIp">
+                                <i class="fas fa-network-wired" style="margin-right: 8px;"></i>
+                                IP Address
+                            </label>
+                            <input type="text" id="serverIp" name="ip" placeholder="192.168.1.1">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverPort">
+                                <i class="fas fa-plug" style="margin-right: 8px;"></i>
+                                Port
+                            </label>
+                            <input type="number" id="serverPort" name="port" placeholder="1194" min="1" max="65535" value="1194">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverProtocol">
+                                <i class="fas fa-exchange-alt" style="margin-right: 8px;"></i>
+                                Protocol
+                            </label>
+                            <select id="serverProtocol" name="protocol">
+                                <option value="udp">UDP</option>
+                                <option value="tcp">TCP</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverCountryLong">
+                                <i class="fas fa-flag" style="margin-right: 8px;"></i>
+                                Country Name
+                            </label>
+                            <input type="text" id="serverCountryLong" name="country_long" placeholder="United States">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverCountryShort">
+                                <i class="fas fa-flag" style="margin-right: 8px;"></i>
+                                Country Code *
+                            </label>
+                            <input type="text" id="serverCountryShort" name="country_short" placeholder="US" maxlength="10" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverLocation">
+                                <i class="fas fa-map-marker-alt" style="margin-right: 8px;"></i>
+                                Location
+                            </label>
+                            <input type="text" id="serverLocation" name="location" placeholder="New York, NY">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverUsername">
+                                <i class="fas fa-user" style="margin-right: 8px;"></i>
+                                Username
+                            </label>
+                            <input type="text" id="serverUsername" name="username" placeholder="vpnuser">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverPassword">
+                                <i class="fas fa-lock" style="margin-right: 8px;"></i>
+                                Password
+                            </label>
+                            <input type="password" id="serverPassword" name="password" placeholder="Enter password">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverSpeed">
+                                <i class="fas fa-tachometer-alt" style="margin-right: 8px;"></i>
+                                Speed (Mbps)
+                            </label>
+                            <input type="number" id="serverSpeed" name="speed" placeholder="100" min="0" value="0">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverMaxConnections">
+                                <i class="fas fa-users" style="margin-right: 8px;"></i>
+                                Max Connections
+                            </label>
+                            <input type="number" id="serverMaxConnections" name="max_connections" placeholder="100" min="1" value="100">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="serverConfig">
+                            <i class="fas fa-file-code" style="margin-right: 8px;"></i>
+                            OpenVPN Configuration *
+                        </label>
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="file" id="ovpnFileInput" accept=".ovpn,.conf" style="display: none;">
+                                <button type="button" id="uploadOvpnBtn" class="btn btn-outline-primary" style="padding: 6px 12px; font-size: 14px;">
+                                    <i class="fas fa-upload" style="margin-right: 6px;"></i>Upload .ovpn File
+                                </button>
+                                <button type="button" id="clearOvpnBtn" class="btn btn-outline-secondary" style="padding: 6px 12px; font-size: 14px; display: none;">
+                                    <i class="fas fa-times" style="margin-right: 6px;"></i>Clear
+                                </button>
+                                <span id="ovpnFileName" style="color: var(--text-muted); font-size: 12px; display: none;"></span>
+                            </div>
+                            <small style="color: var(--text-muted); font-size: 12px; display: block; margin-top: 4px;">
+                                Upload an .ovpn configuration file to auto-populate fields
+                            </small>
+                        </div>
+
+                        <!-- URL Download Section -->
+                        <div style="margin-bottom: 12px; padding: 12px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px;">
+                            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                                <input type="url" id="ovpnUrlInput" placeholder="https://example.com/config.ovpn" style="flex: 1; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 14px;">
+                                <button type="button" id="downloadOvpnBtn" class="btn btn-outline-success" style="padding: 6px 12px; font-size: 14px;">
+                                    <i class="fas fa-download" style="margin-right: 6px;"></i>Download & Parse
+                                </button>
+                            </div>
+                            <small style="color: var(--text-muted); font-size: 12px;">
+                                Enter a URL to download and parse an .ovpn configuration file automatically
+                            </small>
+                        </div>
+
+                        <textarea id="serverConfig" name="openvpn_config_base64" rows="6" placeholder="Paste OpenVPN configuration here, upload .ovpn file, or download from URL above..." required></textarea>
+                        <small style="color: var(--text-muted); font-size: 12px;">
+                            The OpenVPN configuration will be automatically Base64 encoded when saved.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="serverDescription">
+                            <i class="fas fa-comment" style="margin-right: 8px;"></i>
+                            Description
+                        </label>
+                        <textarea id="serverDescription" name="description" rows="3" placeholder="Optional description for this server..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="serverIsActive" name="is_active" checked>
+                            <i class="fas fa-toggle-on" style="color: var(--success-color);"></i>
+                            Server is Active
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="serverIsFeatured" name="is_featured" checked>
+                            <i class="fas fa-star" style="color: #ffc107;"></i>
+                            Featured Server (appears with ⭐ and at top of list)
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('vpnServerModal')">
+                    <i class="fas fa-times"></i>
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveVpnServer()">
+                    <i class="fas fa-save"></i>
+                    <span id="vpnServerSaveText">Save Server</span>
+                </button>
             </div>
         </div>
     </div>

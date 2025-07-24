@@ -6,11 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "npm run setup-production && npm run build-client",
-    "build-client": "echo 'Client build completed'",
+    "build": "npm run setup-production",
     "test": "jest",
     "postinstall": "npm run setup-production",
-    "setup-production": "mkdir -p logs backups config netlify/functions && echo 'Production directories created'"
+    "setup-production": "mkdir -p logs backups config && echo 'Production directories created'"
   },
   "keywords": [
     "admin",
