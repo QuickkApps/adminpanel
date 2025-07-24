@@ -542,6 +542,10 @@ class ConfigService {
             const transaction = await sequelize.transaction();
 
             try {
+              // Disable foreign key constraints to avoid constraint violations during restore
+              await sequelize.query('PRAGMA foreign_keys = OFF', { transaction });
+              logger.info('🔧 Disabled foreign key constraints for restore');
+
               // Restore Admins (preserving current user's password and session)
               if (backupContent.database.admins && backupContent.database.admins.length > 0) {
                 // Get current admin info before clearing (including password)
@@ -691,12 +695,18 @@ class ConfigService {
                 logger.info(`✅ Restored 0 VPN servers (backup contained no servers)`);
               }
 
+              // Re-enable foreign key constraints
+              await sequelize.query('PRAGMA foreign_keys = ON', { transaction });
+              logger.info('🔧 Re-enabled foreign key constraints');
+
               await transaction.commit();
               restoredItems.push('database');
               logger.info('✅ Database restored successfully');
 
             } catch (dbError) {
               try {
+                // Re-enable foreign key constraints even on error
+                await sequelize.query('PRAGMA foreign_keys = ON', { transaction });
                 await transaction.rollback();
                 logger.error('❌ Database restore failed, transaction rolled back:', dbError);
               } catch (rollbackError) {

@@ -51,26 +51,55 @@ const validateConversation = [
     }),
 ];
 
+// Helper function to find or create a user for chat purposes
+async function findOrCreateChatUser(username) {
+  try {
+    // First try to find existing user
+    let user = await User.findOne({ where: { username } });
+
+    if (!user) {
+      // Create a basic user record for chat purposes
+      user = await User.create({
+        username: username,
+        server_url: 'chat-only', // Placeholder server URL for chat-only users
+        subscription_type: 'basic',
+        subscription_status: 'active',
+        max_connections: 1,
+        current_connections: 0,
+        total_connections: 0,
+        last_login: new Date(),
+        last_activity: new Date(),
+        is_active: true,
+        is_online: false,
+        // Set expiry date to 1 year from now for chat-only users
+        expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+      });
+
+      logger.info(`✅ Created new chat user: ${username} (ID: ${user.id})`);
+    }
+
+    return user;
+  } catch (error) {
+    logger.error(`❌ Error finding or creating chat user ${username}:`, error);
+    throw error;
+  }
+}
+
 // Get conversations for a user (user endpoint)
 router.get('/conversations', async (req, res) => {
   try {
     // For user requests, we need to identify the user from the request
     // This will be handled differently based on how user authentication is implemented
     const { username } = req.query;
-    
+
     if (!username) {
       return res.status(400).json({
         error: 'Username is required'
       });
     }
 
-    // Find user
-    const user = await User.findOne({ where: { username } });
-    if (!user) {
-      return res.status(404).json({
-        error: 'User not found'
-      });
-    }
+    // Find or create user (auto-create for chat purposes)
+    const user = await findOrCreateChatUser(username);
 
     const conversations = await ChatConversation.findAll({
       where: { user_id: user.id },
@@ -680,13 +709,8 @@ router.post('/conversations', conversationCreationRateLimit, [
       });
     }
 
-    // Find user
-    const user = await User.findOne({ where: { username: usernameValidation.sanitizedUsername } });
-    if (!user) {
-      return res.status(404).json({
-        error: 'User not found'
-      });
-    }
+    // Find or create user (auto-create for chat purposes)
+    const user = await findOrCreateChatUser(usernameValidation.sanitizedUsername);
 
     // Check if user has too many open conversations
     const openConversationsCount = await ChatConversation.count({
