@@ -1,4 +1,4 @@
-const { models } = require('../database');
+const { models, sequelize } = require('../database');
 const { User, UserSession } = models;
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
@@ -372,6 +372,71 @@ class UserService {
     } catch (error) {
       logger.error('Error disconnecting user:', error);
       throw error;
+    }
+  }
+
+  // Delete user (admin action)
+  static async deleteUser(userId, deletedBy) {
+    try {
+      const { models } = require('../database');
+      const { User, UserSession, ChatConversation, ChatMessage } = models;
+
+      const user = await User.findByPk(userId);
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      const username = user.username;
+
+      // Start a transaction to ensure data consistency
+      const transaction = await sequelize.transaction();
+
+      try {
+        // 1. Delete all chat messages sent by this user
+        await ChatMessage.destroy({
+          where: {
+            sender_type: 'user',
+            sender_id: userId
+          },
+          transaction
+        });
+
+        // 2. Delete all chat conversations for this user
+        await ChatConversation.destroy({
+          where: { user_id: userId },
+          transaction
+        });
+
+        // 3. Delete all user sessions
+        await UserSession.destroy({
+          where: { user_id: userId },
+          transaction
+        });
+
+        // 4. Finally, delete the user
+        await user.destroy({ transaction });
+
+        // Commit the transaction
+        await transaction.commit();
+
+        logger.info(`User deleted: ${username} (ID: ${userId}) by ${deletedBy}`);
+
+        return {
+          success: true,
+          message: 'User deleted successfully',
+          deletedUser: {
+            id: userId,
+            username: username
+          }
+        };
+      } catch (error) {
+        // Rollback the transaction on error
+        await transaction.rollback();
+        throw error;
+      }
+    } catch (error) {
+      logger.error('Error deleting user:', error);
+      return { success: false, message: 'Failed to delete user' };
     }
   }
 }

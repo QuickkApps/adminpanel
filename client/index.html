@@ -1553,6 +1553,176 @@
             }
         }
         }
+
+        /* Content Management Styles */
+        .content-management-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .content-card {
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .content-card:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .content-card-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            padding: 20px;
+            background: var(--dark-surface-light);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .content-card-header h3 {
+            color: var(--text-primary);
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            flex: 1;
+        }
+
+        .content-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .content-preview {
+            padding: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .content-preview.loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .content-meta {
+            padding: 12px 20px;
+            background: var(--dark-bg);
+            border-top: 1px solid var(--border-color);
+        }
+
+        .content-preview-section {
+            margin-top: 16px;
+        }
+
+        .content-preview-box {
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            min-height: 120px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 8px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .content-preview-box.html-preview {
+            white-space: normal;
+        }
+
+        .content-preview-box.html-preview * {
+            color: inherit;
+            font-family: inherit;
+        }
+
+        /* Character counter */
+        .text-muted {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        /* Enhanced textarea for content editing */
+        #contentText {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            min-height: 300px;
+        }
+
+        /* Content type specific styling */
+        .content-type-html #contentText {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+
+        .content-type-markdown #contentText {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+
+        .content-type-plain_text #contentText {
+            font-family: inherit;
+        }
+
+        /* Loading states */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .loading::before {
+            content: '';
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border-color);
+            border-top: 2px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .content-management-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .content-card-header {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .content-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1629,6 +1799,10 @@
                 <button class="nav-tab" onclick="showTab('config')">
                     <i class="fas fa-cog"></i>
                     Configuration
+                </button>
+                <button class="nav-tab" onclick="showTab('content')">
+                    <i class="fas fa-edit"></i>
+                    Content Management
                 </button>
                 <button class="nav-tab" onclick="showTab('users')">
                     <i class="fas fa-users"></i>
@@ -1797,6 +1971,72 @@
                 </div>
             </div>
 
+            <!-- Content Management Tab -->
+            <div id="contentTab" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-edit card-icon"></i>
+                            Content Management
+                        </h2>
+                        <div class="card-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="refreshContentList()">
+                                <i class="fas fa-sync-alt"></i>
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div id="contentAlert"></div>
+
+                    <!-- Content List -->
+                    <div class="content-management-grid">
+                        <!-- About Anume Content -->
+                        <div class="content-card">
+                            <div class="content-card-header">
+                                <h3>
+                                    <i class="fas fa-info-circle"></i>
+                                    About Anume
+                                </h3>
+                                <div class="content-actions">
+                                    <button class="btn btn-primary btn-sm" onclick="editContent('about_anume')">
+                                        <i class="fas fa-edit"></i>
+                                        Edit
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="content-preview" id="aboutAnumePreview">
+                                <div class="loading">Loading...</div>
+                            </div>
+                            <div class="content-meta" id="aboutAnumeMeta">
+                                <small class="text-muted">Last updated: Loading...</small>
+                            </div>
+                        </div>
+
+                        <!-- Privacy Policy Content -->
+                        <div class="content-card">
+                            <div class="content-card-header">
+                                <h3>
+                                    <i class="fas fa-shield-alt"></i>
+                                    Privacy Policy
+                                </h3>
+                                <div class="content-actions">
+                                    <button class="btn btn-primary btn-sm" onclick="editContent('privacy_policy')">
+                                        <i class="fas fa-edit"></i>
+                                        Edit
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="content-preview" id="privacyPolicyPreview">
+                                <div class="loading">Loading...</div>
+                            </div>
+                            <div class="content-meta" id="privacyPolicyMeta">
+                                <small class="text-muted">Last updated: Loading...</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- User Management Tab -->
             <div id="usersTab" class="tab-content hidden">
                 <div class="card">
@@ -1923,6 +2163,10 @@
                                     <button class="btn btn-danger btn-sm" onclick="bulkDisconnectUsers()">
                                         <i class="fas fa-sign-out-alt"></i>
                                         Disconnect Selected
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" onclick="bulkDeleteUsers()" style="background-color: #dc2626;">
+                                        <i class="fas fa-trash"></i>
+                                        Delete Selected
                                     </button>
                                 </div>
                             </div>
@@ -2110,6 +2354,23 @@
                         </h2>
                     </div>
                     <div id="backupAlert" class="alert" style="display: none;"></div>
+
+                    <!-- Create Backup Section -->
+                    <div class="upload-section" style="margin-bottom: 30px;">
+                        <i class="fas fa-plus-circle upload-icon" style="color: var(--success-color);"></i>
+                        <h3 class="upload-title">Create New Backup</h3>
+                        <p class="upload-subtitle">Create a comprehensive backup of all admin panel data</p>
+                        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-success" onclick="createFullBackup()">
+                                <i class="fas fa-database"></i>
+                                Create Full Backup
+                            </button>
+                            <button type="button" class="btn btn-warning" onclick="createConfigBackup()">
+                                <i class="fas fa-cog"></i>
+                                Config Only Backup
+                            </button>
+                        </div>
+                    </div>
 
                     <!-- Upload Backup Section -->
                     <div class="upload-section">
@@ -2593,6 +2854,83 @@
                 <button type="button" class="btn btn-primary" onclick="saveVpnServer()">
                     <i class="fas fa-save"></i>
                     <span id="vpnServerSaveText">Save Server</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Edit Modal -->
+    <div id="contentEditModal" class="modal">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh;">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-edit"></i>
+                    <span id="contentEditModalTitle">Edit Content</span>
+                </h2>
+                <button class="modal-close" onclick="closeModal('contentEditModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <form id="contentEditForm">
+                    <input type="hidden" id="contentKey" name="contentKey">
+
+                    <div class="form-group">
+                        <label for="contentTitle">
+                            <i class="fas fa-heading" style="margin-right: 8px;"></i>
+                            Title
+                        </label>
+                        <input type="text" id="contentTitle" name="title" placeholder="Enter content title" required maxlength="255">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="contentType">
+                            <i class="fas fa-code" style="margin-right: 8px;"></i>
+                            Content Type
+                        </label>
+                        <select id="contentType" name="content_type">
+                            <option value="plain_text">Plain Text</option>
+                            <option value="html">HTML</option>
+                            <option value="markdown">Markdown</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="contentText">
+                            <i class="fas fa-file-text" style="margin-right: 8px;"></i>
+                            Content
+                        </label>
+                        <textarea id="contentText" name="content" placeholder="Enter content here..." required rows="15" maxlength="50000"></textarea>
+                        <small class="text-muted">
+                            <span id="contentCharCount">0</span>/50,000 characters
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="content-preview-section">
+                            <label>
+                                <i class="fas fa-eye" style="margin-right: 8px;"></i>
+                                Preview
+                            </label>
+                            <div id="contentPreviewArea" class="content-preview-box">
+                                <div class="text-muted">Preview will appear here...</div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('contentEditModal')">
+                    <i class="fas fa-times"></i>
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-info" onclick="previewContent()">
+                    <i class="fas fa-eye"></i>
+                    Preview
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveContent()">
+                    <i class="fas fa-save"></i>
+                    Save Changes
                 </button>
             </div>
         </div>

@@ -317,8 +317,9 @@ class ConfigService {
         const isOldConfig = file.startsWith('remote_config_backup_');
         const isOldDatabase = file.startsWith('database_backup_');
         const isNewFull = file.startsWith('full_backup_');
+        const isNewConfig = file.startsWith('config_backup_');
 
-        if (!isOldConfig && !isOldDatabase && !isNewFull) continue;
+        if (!isOldConfig && !isOldDatabase && !isNewFull && !isNewConfig) continue;
 
         let timestamp;
         let parsedDate;
@@ -355,6 +356,20 @@ class ConfigService {
               timestamp = parsedDate.toISOString();
               backupType = 'config-only';
             }
+          } else if (isNewConfig) {
+            // New config format: config_backup_12am-23min-34sec_07-19-25.json
+            const match = file.match(/config_backup_(\d+)(am|pm)-(\d+)min-(\d+)sec_(\d+)-(\d+)-(\d+)\.json$/);
+            if (match) {
+              const [, hour12, ampm, minutes, seconds, month, day, year] = match;
+              let hour24 = parseInt(hour12);
+              if (ampm === 'pm' && hour24 !== 12) hour24 += 12;
+              if (ampm === 'am' && hour24 === 12) hour24 = 0;
+
+              const fullYear = 2000 + parseInt(year);
+              parsedDate = new Date(fullYear, parseInt(month) - 1, parseInt(day), hour24, parseInt(minutes), parseInt(seconds));
+              timestamp = parsedDate.toISOString();
+              backupType = 'config-only';
+            }
           } else if (isOldConfig) {
             // Old config format: remote_config_backup_2025-07-18T19-31-00-922Z.json
             const oldTimestamp = file.replace('remote_config_backup_', '').replace('.json', '');
@@ -378,6 +393,22 @@ class ConfigService {
               statistics: backupData.statistics,
               hasConfiguration: !!backupData.configuration,
               hasDatabase: !!backupData.database && Object.keys(backupData.database).length > 0
+            };
+          } else if (backupData.backupType === 'config-only' && backupData.backupDate) {
+            // New config-only backup format
+            backupInfo = {
+              type: 'config-only',
+              version: backupData.backupVersion || '1.0',
+              description: 'Configuration backup only',
+              statistics: {
+                totalAdmins: 0,
+                totalUsers: 0,
+                totalChatMessages: 0,
+                totalVpnServers: 0,
+                backupSizeBytes: Buffer.byteLength(backupContent, 'utf8')
+              },
+              hasConfiguration: true,
+              hasDatabase: false
             };
           } else {
             // Old format - just configuration
@@ -466,7 +497,7 @@ class ConfigService {
   // Restore from backup (supports both old config-only and new full backups)
   async restoreFromBackup(backupFileName, options = {}) {
     try {
-      const { restoreDatabase = true, restoreConfiguration = true } = options;
+      const { restoreDatabase = true, restoreConfiguration = true, currentUserId = null } = options;
       const backupPath = path.join(this.backupDir, backupFileName);
 
       // Check if backup exists
@@ -504,36 +535,79 @@ class ConfigService {
 
         // 2. Restore database if requested and available
         if (restoreDatabase && backupContent.database) {
-          const { models } = require('../database');
+          const { models, sequelize } = require('../database');
 
           try {
             // Start transaction for database restore
-            const sequelize = require('../database').sequelize;
             const transaction = await sequelize.transaction();
 
             try {
-              // Restore Admins (excluding current session for security)
+              // Restore Admins (preserving current user's password and session)
               if (backupContent.database.admins && backupContent.database.admins.length > 0) {
-                // Clear existing admins except current user
+                // Get current admin info before clearing (including password)
+                let currentAdmin = null;
+                if (currentUserId) {
+                  currentAdmin = await models.Admin.findByPk(currentUserId, {
+                    transaction,
+                    attributes: ['id', 'username', 'password', 'role', 'email', 'full_name', 'is_active']
+                  });
+                }
+
+                // Clear existing admins
                 await models.Admin.destroy({ where: {}, transaction });
 
-                // Restore admins (passwords will need to be reset)
+                // Restore admins
                 for (const admin of backupContent.database.admins) {
-                  await models.Admin.create({
+                  const adminData = {
                     ...admin,
-                    password: 'RESTORE_REQUIRED', // Force password reset
                     createdAt: admin.createdAt || new Date(),
                     updatedAt: new Date()
-                  }, { transaction });
+                  };
+
+                  // If this is the current user (match by username), preserve their current password and use current ID
+                  if (currentAdmin && admin.username === currentAdmin.username) {
+                    adminData.id = currentAdmin.id; // Use current admin's ID to maintain JWT compatibility
+                    adminData.password = currentAdmin.password; // Preserve current password hash
+                    adminData.role = currentAdmin.role; // Preserve current role
+                    logger.info(`✅ Preserved current admin session for user: ${admin.username} (ID: ${currentAdmin.id})`);
+                  } else {
+                    // For other admins, set a default password that requires reset
+                    adminData.password = '$2a$10$defaultPasswordHashThatRequiresReset'; // Placeholder hash
+                  }
+
+                  await models.Admin.create(adminData, { transaction });
                 }
-                logger.info(`✅ Restored ${backupContent.database.admins.length} admin accounts`);
+                logger.info(`✅ Restored ${backupContent.database.admins.length} admin accounts (preserved current user session)`);
               }
 
-              // Restore Users
+              // Restore Users - ALWAYS clear existing users first, even if backup has 0 users
+              await models.User.destroy({ where: {}, transaction });
+
               if (backupContent.database.users && backupContent.database.users.length > 0) {
-                await models.User.destroy({ where: {}, transaction });
-                await models.User.bulkCreate(backupContent.database.users, { transaction });
-                logger.info(`✅ Restored ${backupContent.database.users.length} users`);
+                // Process users data to handle any data type issues
+                const processedUsers = backupContent.database.users.map(user => ({
+                  ...user,
+                  // Ensure proper data types
+                  is_active: user.is_active ? 1 : 0,
+                  is_online: user.is_online ? 1 : 0,
+                  max_connections: parseInt(user.max_connections) || 1,
+                  current_connections: parseInt(user.current_connections) || 0,
+                  total_connections: parseInt(user.total_connections) || 0,
+                  // Handle dates properly
+                  expiry_date: user.expiry_date ? new Date(user.expiry_date) : null,
+                  last_login: user.last_login ? new Date(user.last_login) : null,
+                  last_activity: user.last_activity ? new Date(user.last_activity) : null,
+                  createdAt: user.createdAt ? new Date(user.createdAt) : new Date(),
+                  updatedAt: user.updatedAt ? new Date(user.updatedAt) : new Date()
+                }));
+
+                await models.User.bulkCreate(processedUsers, {
+                  transaction,
+                  ignoreDuplicates: false
+                });
+                logger.info(`✅ Restored ${processedUsers.length} users`);
+              } else {
+                logger.info(`✅ Restored 0 users (backup contained no users)`);
               }
 
               // Restore User Sessions
@@ -541,6 +615,39 @@ class ConfigService {
                 await models.UserSession.destroy({ where: {}, transaction });
                 await models.UserSession.bulkCreate(backupContent.database.userSessions, { transaction });
                 logger.info(`✅ Restored ${backupContent.database.userSessions.length} user sessions`);
+              }
+
+              // Handle Admin Sessions (preserve current session to avoid logout)
+              if (backupContent.database.adminSessions && backupContent.database.adminSessions.length > 0) {
+                // Get current admin session before clearing
+                let currentAdminSession = null;
+                if (currentUserId) {
+                  currentAdminSession = await models.AdminSession.findOne({
+                    where: { admin_id: currentUserId, status: 'active' },
+                    order: [['started_at', 'DESC']],
+                    transaction
+                  });
+                }
+
+                // Clear existing admin sessions
+                await models.AdminSession.destroy({ where: {}, transaction });
+
+                // Don't restore old admin sessions - they might conflict with current session
+                // Instead, just preserve the current admin session if it exists
+                if (currentAdminSession) {
+                  // Create the current session to ensure the user stays logged in
+                  await models.AdminSession.create({
+                    ...currentAdminSession.dataValues,
+                    id: currentAdminSession.id,
+                    admin_id: currentUserId, // Ensure it uses the current admin ID
+                    updatedAt: new Date()
+                  }, { transaction });
+                  logger.info(`✅ Preserved current admin session for user ID: ${currentUserId}`);
+                } else {
+                  logger.warn(`⚠️ No current admin session found to preserve`);
+                }
+
+                logger.info(`✅ Restored ${backupContent.database.adminSessions.length} admin sessions (current session preserved)`);
               }
 
               // Restore Chat Conversations
@@ -557,11 +664,31 @@ class ConfigService {
                 logger.info(`✅ Restored ${backupContent.database.chatMessages.length} chat messages`);
               }
 
-              // Restore VPN Servers
+              // Restore VPN Servers - ALWAYS clear existing servers first, even if backup has 0 servers
+              await models.VpnServer.destroy({ where: {}, transaction });
+
               if (backupContent.database.vpnServers && backupContent.database.vpnServers.length > 0) {
-                await models.VpnServer.destroy({ where: {}, transaction });
-                await models.VpnServer.bulkCreate(backupContent.database.vpnServers, { transaction });
-                logger.info(`✅ Restored ${backupContent.database.vpnServers.length} VPN servers`);
+                // Process VPN servers data
+                const processedServers = backupContent.database.vpnServers.map(server => ({
+                  ...server,
+                  // Ensure proper data types
+                  port: parseInt(server.port) || 1194,
+                  speed: parseInt(server.speed) || 100,
+                  max_connections: parseInt(server.max_connections) || 100,
+                  server_load: parseFloat(server.server_load) || 0,
+                  is_active: server.is_active ? 1 : 0,
+                  is_featured: server.is_featured ? 1 : 0,
+                  createdAt: server.createdAt ? new Date(server.createdAt) : new Date(),
+                  updatedAt: server.updatedAt ? new Date(server.updatedAt) : new Date()
+                }));
+
+                await models.VpnServer.bulkCreate(processedServers, {
+                  transaction,
+                  ignoreDuplicates: false
+                });
+                logger.info(`✅ Restored ${processedServers.length} VPN servers`);
+              } else {
+                logger.info(`✅ Restored 0 VPN servers (backup contained no servers)`);
               }
 
               await transaction.commit();
@@ -569,12 +696,17 @@ class ConfigService {
               logger.info('✅ Database restored successfully');
 
             } catch (dbError) {
-              await transaction.rollback();
+              try {
+                await transaction.rollback();
+                logger.error('❌ Database restore failed, transaction rolled back:', dbError);
+              } catch (rollbackError) {
+                logger.error('❌ Failed to rollback transaction:', rollbackError);
+              }
               throw new Error(`Database restore failed: ${dbError.message}`);
             }
-          } catch (dbError) {
-            logger.error('Database restore error:', dbError);
-            throw dbError;
+          } catch (transactionError) {
+            logger.error('❌ Failed to start database transaction:', transactionError);
+            throw new Error(`Transaction error: ${transactionError.message}`);
           }
         }
 

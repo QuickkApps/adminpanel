@@ -258,4 +258,56 @@ router.patch('/:userId/status', authMiddleware, [
   }
 });
 
+// Delete user (admin action)
+router.delete('/:userId', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId || isNaN(userId)) {
+      return res.status(400).json({
+        error: 'Invalid user ID',
+        message: 'User ID must be a valid number'
+      });
+    }
+
+    const result = await UserService.deleteUser(
+      parseInt(userId),
+      req.user.username
+    );
+
+    if (!result.success) {
+      return res.status(400).json({
+        error: 'User deletion failed',
+        message: result.message
+      });
+    }
+
+    // Emit user deletion event to WebSocket clients
+    if (req.io) {
+      req.io.emit('user-deleted', {
+        userId: parseInt(userId),
+        username: result.deletedUser.username,
+        deletedBy: req.user.username,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    logger.info(`User deleted: ID ${userId} (${result.deletedUser.username}) by ${req.user.username}`);
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: {
+        deletedUser: result.deletedUser
+      }
+    });
+  } catch (error) {
+    logger.error('Error deleting user:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to delete user'
+    });
+  }
+});
+
 module.exports = router;

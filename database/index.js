@@ -22,6 +22,7 @@ const ChatConversation = require('./models/ChatConversation')(sequelize);
 const ChatMessage = require('./models/ChatMessage')(sequelize);
 const VpnServer = require('./models/VpnServer')(sequelize);
 const AdminSetting = require('./models/AdminSetting')(sequelize);
+const AppContent = require('./models/AppContent')(sequelize);
 
 // Define associations
 Admin.hasMany(AdminSession, { foreignKey: 'admin_id', as: 'sessions' });
@@ -29,6 +30,10 @@ AdminSession.belongsTo(Admin, { foreignKey: 'admin_id', as: 'admin' });
 
 User.hasMany(UserSession, { foreignKey: 'user_id', as: 'sessions' });
 UserSession.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+// AppContent associations
+Admin.hasMany(AppContent, { foreignKey: 'last_updated_by', as: 'updatedContents' });
+AppContent.belongsTo(Admin, { foreignKey: 'last_updated_by', as: 'updatedBy' });
 
 // Chat model associations
 const models = {
@@ -40,6 +45,7 @@ const models = {
   ChatMessage,
   VpnServer,
   AdminSetting,
+  AppContent,
 };
 
 // Initialize associations for chat models
@@ -68,7 +74,11 @@ const initializeDatabase = async () => {
 
     // Create default admin if it doesn't exist
     await createDefaultAdmin();
-    
+
+    // Seed default content
+    const { seedDefaultContent } = require('./seeders/default_content');
+    await seedDefaultContent();
+
     return true;
   } catch (error) {
     logger.error('Unable to connect to database:', error);
@@ -117,6 +127,7 @@ module.exports = {
     ChatMessage,
     VpnServer,
     AdminSetting,
+    AppContent,
   },
   initializeDatabase,
 };

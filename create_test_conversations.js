@@ -2,7 +2,8 @@
  * Script to create test conversations to verify filtering
  */
 
-const { User, Conversation, Message } = require('./database/models');
+const { models } = require('./database');
+const { User, Conversation, Message } = models;
 
 async function createTestConversations() {
     console.log('🧪 Creating test conversations...');
@@ -14,24 +15,33 @@ async function createTestConversations() {
                 where: { username: 'XT30560' },
                 defaults: {
                     username: 'XT30560',
-                    email: 'xt30560@test.com',
-                    isActive: true
+                    server_url: 'http://localhost:3001',
+                    subscription_type: 'basic',
+                    subscription_status: 'active',
+                    is_active: true,
+                    is_online: false
                 }
             }),
             User.findOrCreate({
                 where: { username: 'sda' },
                 defaults: {
                     username: 'sda',
-                    email: 'sda@test.com',
-                    isActive: true
+                    server_url: 'http://localhost:3001',
+                    subscription_type: 'basic',
+                    subscription_status: 'active',
+                    is_active: true,
+                    is_online: false
                 }
             }),
             User.findOrCreate({
                 where: { username: 'legitimate_user' },
                 defaults: {
                     username: 'legitimate_user',
-                    email: 'user@test.com',
-                    isActive: true
+                    server_url: 'http://localhost:3001',
+                    subscription_type: 'premium',
+                    subscription_status: 'active',
+                    is_active: true,
+                    is_online: false
                 }
             })
         ]);

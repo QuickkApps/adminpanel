@@ -83,10 +83,14 @@ app.use((req, res, next) => {
 const logsRoutes = require('./routes/logs');
 const chatRoutes = require('./routes/chat');
 const vpnServersRoutes = require('./routes/vpnServers');
+const contentRoutes = require('./routes/content');
 app.use('/api/auth', authRoutes);
 
 // Config routes - some need auth, some don't
 app.use('/api/config', configRoutes);
+
+// Content management routes - some public, some need auth
+app.use('/api/content', contentRoutes);
 
 // User and admin management routes
 app.use('/api/users', usersRoutes);

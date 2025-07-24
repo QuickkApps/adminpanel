@@ -275,6 +275,52 @@ router.post('/backup', authMiddleware, async (req, res) => {
   }
 });
 
+// Create config-only backup
+router.post('/backup-config-only', authMiddleware, async (req, res) => {
+  try {
+    // Create a config-only backup by reading current config and saving it
+    const currentConfig = await configService.readConfig();
+
+    // Generate backup filename
+    const now = new Date();
+    const timeStr = `${now.getHours()}am-${now.getMinutes()}min-${now.getSeconds()}sec_${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getFullYear()).slice(-2)}`;
+    const backupFileName = `config_backup_${timeStr}.json`;
+
+    // Create backup content (config only)
+    const backupContent = {
+      ...currentConfig,
+      backupType: 'config-only',
+      backupDate: now.toISOString(),
+      backupVersion: '1.0'
+    };
+
+    // Save backup file
+    const fs = require('fs').promises;
+    const path = require('path');
+    const backupDir = path.join(__dirname, '../backups');
+
+    // Ensure backup directory exists
+    await fs.mkdir(backupDir, { recursive: true });
+
+    const backupPath = path.join(backupDir, backupFileName);
+    await fs.writeFile(backupPath, JSON.stringify(backupContent, null, 2));
+
+    logger.info(`Config-only backup created: ${backupFileName} by user: ${req.user.username}`);
+
+    res.json({
+      success: true,
+      backupFileName,
+      message: 'Configuration backup created successfully'
+    });
+  } catch (error) {
+    logger.error('Failed to create config-only backup:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to create configuration backup'
+    });
+  }
+});
+
 // List backups
 router.get('/backups', authMiddleware, async (req, res) => {
   try {
@@ -343,7 +389,8 @@ router.post('/restore/:backupFileName', authMiddleware, async (req, res) => {
 
     const restoreResult = await configService.restoreFromBackup(backupFileName, {
       restoreDatabase,
-      restoreConfiguration
+      restoreConfiguration,
+      currentUserId: req.user.id
     });
 
     logger.info(`Backup restored by user: ${req.user.username} - ${backupFileName}`);
@@ -363,13 +410,36 @@ router.post('/restore/:backupFileName', authMiddleware, async (req, res) => {
       // If configuration was restored, also broadcast config update
       if (restoreResult.restoredItems.includes('configuration')) {
         try {
-          const currentConfig = await configService.getConfig();
-          const safeConfig = { ...currentConfig };
-          safeConfig.password = '***';
-          req.io.to('config-updates').emit('config-updated', safeConfig);
+          const currentConfig = await configService.readConfig();
+          if (currentConfig) {
+            const safeConfig = { ...currentConfig };
+            safeConfig.password = '***';
+            req.io.to('config-updates').emit('config-updated', safeConfig);
+          }
         } catch (configError) {
           logger.warn('Failed to broadcast config update after restore:', configError);
         }
+      }
+    }
+
+    // For full restore (both database and configuration), force logout all admin sessions
+    const isFullRestore = restoreResult.restoredItems.includes('database') && restoreResult.restoredItems.includes('configuration');
+    if (isFullRestore) {
+      try {
+        // Clear all admin sessions from database
+        await models.AdminSession.destroy({ where: {} });
+        logger.info('🔄 All admin sessions cleared after full restore - users will need to re-login');
+
+        // Emit logout event to all connected admin sockets
+        if (req.io) {
+          req.io.emit('force-logout', {
+            reason: 'Full restore completed - please login again',
+            timestamp: new Date().toISOString()
+          });
+          logger.info('📡 Force logout event sent to all connected admin clients');
+        }
+      } catch (sessionError) {
+        logger.warn('⚠️ Failed to clear admin sessions after restore:', sessionError.message);
       }
     }
 
@@ -378,7 +448,8 @@ router.post('/restore/:backupFileName', authMiddleware, async (req, res) => {
       backupFileName,
       backupType: restoreResult.backupType,
       restoredItems: restoreResult.restoredItems,
-      message: restoreResult.message
+      message: restoreResult.message,
+      forceLogout: isFullRestore // Indicate if client should logout
     });
   } catch (error) {
     logger.error('Failed to restore from backup:', error);

@@ -66,6 +66,9 @@ window.showTab = function(tabName) {
         case 'backups':
             loadBackups();
             break;
+        case 'content':
+            loadContentManagement();
+            break;
     }
 };
 
@@ -615,6 +618,9 @@ function displayUsers(users) {
                                 <i class="fas fa-sign-out-alt"></i>
                             </button>
                         ` : ''}
+                        <button class="btn btn-danger btn-sm" onclick="deleteUser(${user.id}, '${user.username}')" title="Delete User" style="background-color: #dc2626;">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                 </td>
             </tr>
@@ -1240,6 +1246,58 @@ window.bulkDisconnectUsers = async function() {
     }
 };
 
+window.bulkDeleteUsers = async function() {
+    if (selectedUsers.size === 0) return;
+
+    // Get usernames for confirmation
+    const usernames = Array.from(selectedUsers).map(userId => {
+        const user = currentUsers.find(u => u.id === userId);
+        return user ? user.username : `ID:${userId}`;
+    });
+
+    // Double confirmation for destructive action
+    const firstConfirm = confirm(`⚠️ WARNING: This will permanently delete ${selectedUsers.size} selected user${selectedUsers.size > 1 ? 's' : ''} and all their data.\n\nUsers to delete:\n${usernames.join(', ')}\n\nThis action cannot be undone. Are you sure?`);
+    if (!firstConfirm) return;
+
+    const secondConfirm = confirm(`Please confirm again: Delete ${selectedUsers.size} user${selectedUsers.size > 1 ? 's' : ''} permanently?\n\nThis will remove for each user:\n• User account\n• All user sessions\n• All chat conversations and messages\n• All related data`);
+    if (!secondConfirm) return;
+
+    try {
+        let successCount = 0;
+        let errorCount = 0;
+        const errors = [];
+
+        for (const userId of selectedUsers) {
+            try {
+                await apiCall(`/api/users/${userId}`, {
+                    method: 'DELETE'
+                });
+                successCount++;
+            } catch (error) {
+                errorCount++;
+                errors.push(`User ID ${userId}: ${error.message}`);
+            }
+        }
+
+        if (successCount > 0) {
+            showAlert(`Successfully deleted ${successCount} user${successCount > 1 ? 's' : ''}`, 'success');
+        }
+
+        if (errorCount > 0) {
+            showAlert(`Failed to delete ${errorCount} user${errorCount > 1 ? 's' : ''}:\n${errors.join('\n')}`, 'error');
+        }
+
+        // Refresh the user list and clear selections
+        refreshUserList();
+        selectedUsers.clear();
+        updateBulkActions();
+
+    } catch (error) {
+        console.error('Error deleting users:', error);
+        showAlert(`Failed to delete users: ${error.message}`, 'error');
+    }
+};
+
 // Toggle user status function
 window.toggleUserStatus = async function(userId, activate) {
     try {
@@ -1445,6 +1503,35 @@ window.disconnectUser = async function(userId) {
     }
 };
 
+// Delete user function
+window.deleteUser = async function(userId, username) {
+    // Double confirmation for destructive action
+    const firstConfirm = confirm(`⚠️ WARNING: This will permanently delete user "${username}" and all their data.\n\nThis action cannot be undone. Are you sure?`);
+    if (!firstConfirm) return;
+
+    const secondConfirm = confirm(`Please confirm again: Delete user "${username}" permanently?\n\nThis will remove:\n• User account\n• All user sessions\n• All chat conversations and messages\n• All related data`);
+    if (!secondConfirm) return;
+
+    try {
+        const response = await apiCall(`/api/users/${userId}`, {
+            method: 'DELETE'
+        });
+
+        showAlert(`User "${username}" deleted successfully`, 'success');
+
+        // Refresh the user list
+        refreshUserList();
+
+        // Clear any selections
+        selectedUsers.clear();
+        updateBulkActions();
+
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        showAlert(`Failed to delete user: ${error.message}`, 'error');
+    }
+};
+
 class AdminPanel {
     constructor() {
         this.token = localStorage.getItem('adminToken');
@@ -1592,6 +1679,21 @@ class AdminPanel {
                 client_type: 'admin'
             });
             console.log('🏓 Admin panel sent pong response');
+        });
+
+        // Handle force logout after full restore
+        this.socket.on('force-logout', (data) => {
+            console.log('🔄 Force logout received:', data);
+            showAlert(data.reason || 'You have been logged out', 'warning');
+
+            // Clear token and logout
+            this.token = null;
+            localStorage.removeItem('adminToken');
+
+            // Redirect to login page after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
         });
     }
 
@@ -1775,12 +1877,12 @@ class AdminPanel {
 
             if (response.ok) {
                 this.displayBackups(data.backups);
-                this.showAlert('backupAlert', `Found ${data.count} backup(s)`, 'success');
+                window.showAlert(`Found ${data.count} backup(s)`, 'success');
             } else {
-                this.showAlert('backupAlert', data.message || 'Failed to load backups', 'error');
+                window.showAlert(data.message || 'Failed to load backups', 'error');
             }
         } catch (error) {
-            this.showAlert('backupAlert', 'Network error: ' + error.message, 'error');
+            window.showAlert('Network error: ' + error.message, 'error');
         }
     }
 
@@ -1916,7 +2018,7 @@ class AdminPanel {
             confirmMessage += "This will restore CONFIGURATION ONLY:\n• API settings and configuration\n• Database data will be preserved\n\n⚠️ This will overwrite current configuration!";
             restoreItems = ['configuration'];
         } else {
-            this.showAlert('backupAlert', 'No restore options selected', 'error');
+            window.showAlert('No restore options selected', 'error');
             return;
         }
 
@@ -1925,7 +2027,7 @@ class AdminPanel {
         }
 
         try {
-            this.showAlert('backupAlert', `🔄 Restoring ${restoreItems.join(' and ')} from backup...`, 'info');
+            window.showAlert(`🔄 Restoring ${restoreItems.join(' and ')} from backup...`, 'info');
 
             const response = await fetch(`/api/config/restore/${backupFileName}`, {
                 method: 'POST',
@@ -1944,13 +2046,28 @@ class AdminPanel {
             if (response.ok) {
                 const restoredItems = data.restoredItems || [];
                 const backupType = data.backupType || 'unknown';
+                const forceLogout = data.forceLogout || false;
 
                 let successMessage = `✅ Successfully restored ${restoredItems.join(' and ')} from backup!\n\n`;
                 successMessage += `📁 Backup: ${backupFileName}\n`;
                 successMessage += `📊 Type: ${backupType}\n`;
                 successMessage += `🔄 Restored: ${restoredItems.join(', ')}`;
 
-                this.showAlert('backupAlert', successMessage, 'success');
+                if (forceLogout) {
+                    successMessage += `\n\n🔄 You will be logged out automatically for security reasons.`;
+                }
+
+                window.showAlert(successMessage, 'success');
+
+                // Handle force logout for full restores
+                if (forceLogout) {
+                    setTimeout(() => {
+                        this.token = null;
+                        localStorage.removeItem('adminToken');
+                        window.location.reload();
+                    }, 3000); // Give user time to read the success message
+                    return; // Don't continue with other reload operations
+                }
 
                 // Reload relevant data based on what was restored
                 if (restoredItems.includes('configuration')) {
@@ -1969,11 +2086,22 @@ class AdminPanel {
                     this.loadBackups();
                 }, 1000);
 
+            } else if (response.status === 401) {
+                // Handle authentication errors specifically for full restores
+                if (restoreDatabase) {
+                    window.showAlert(`🔐 Session expired during full restore. The restore may have completed successfully, but you need to log in again to verify.`, 'warning');
+                    setTimeout(() => {
+                        this.logout();
+                    }, 4000); // Give user time to read the message
+                } else {
+                    window.showAlert(`🔐 Session expired. Please log in again.`, 'error');
+                    this.logout();
+                }
             } else {
-                this.showAlert('backupAlert', `❌ Restore failed: ${data.message || 'Unknown error'}`, 'error');
+                window.showAlert(`❌ Restore failed: ${data.message || 'Unknown error'}`, 'error');
             }
         } catch (error) {
-            this.showAlert('backupAlert', `❌ Network error during restore: ${error.message}`, 'error');
+            window.showAlert(`❌ Network error during restore: ${error.message}`, 'error');
         }
     }
 
@@ -1994,12 +2122,12 @@ class AdminPanel {
                 link.click();
                 document.body.removeChild(link);
 
-                this.showAlert('backupAlert', `📥 Downloading: ${backupFileName}`, 'success');
+                window.showAlert(`📥 Downloading: ${backupFileName}`, 'success');
             } else {
-                this.showAlert('backupAlert', '❌ Failed to download backup', 'error');
+                window.showAlert('❌ Failed to download backup', 'error');
             }
         } catch (error) {
-            this.showAlert('backupAlert', `❌ Network error: ${error.message}`, 'error');
+            window.showAlert(`❌ Network error: ${error.message}`, 'error');
         }
     }
 
@@ -2019,13 +2147,13 @@ class AdminPanel {
             const data = await response.json();
 
             if (response.ok) {
-                this.showAlert('backupAlert', `🗑️ Backup deleted: ${backupFileName}`, 'success');
+                window.showAlert(`🗑️ Backup deleted: ${backupFileName}`, 'success');
                 this.loadBackups(); // Reload backups list
             } else {
-                this.showAlert('backupAlert', `❌ Failed to delete backup: ${data.message || 'Unknown error'}`, 'error');
+                window.showAlert(`❌ Failed to delete backup: ${data.message || 'Unknown error'}`, 'error');
             }
         } catch (error) {
-            this.showAlert('backupAlert', `❌ Network error: ${error.message}`, 'error');
+            window.showAlert(`❌ Network error: ${error.message}`, 'error');
         }
     }
 
@@ -2034,12 +2162,12 @@ class AdminPanel {
         const file = fileInput.files[0];
 
         if (!file) {
-            this.showAlert('backupAlert', 'Please select a backup file', 'error');
+            window.showAlert('Please select a backup file', 'error');
             return;
         }
 
         if (!file.name.endsWith('.json')) {
-            this.showAlert('backupAlert', 'Please select a valid JSON backup file', 'error');
+            window.showAlert('Please select a valid JSON backup file', 'error');
             return;
         }
 
@@ -2071,15 +2199,15 @@ class AdminPanel {
             const data = await response.json();
 
             if (response.ok) {
-                this.showAlert('backupAlert', `Configuration restored from uploaded file: ${file.name}`, 'success');
+                window.showAlert(`Configuration restored from uploaded file: ${file.name}`, 'success');
                 this.loadConfig(); // Reload current config
                 this.loadStatus(); // Reload status
                 fileInput.value = ''; // Clear file input
             } else {
-                this.showAlert('backupAlert', data.message || 'Failed to restore from uploaded file', 'error');
+                window.showAlert(data.message || 'Failed to restore from uploaded file', 'error');
             }
         } catch (error) {
-            this.showAlert('backupAlert', 'Error processing backup file: ' + error.message, 'error');
+            window.showAlert('Error processing backup file: ' + error.message, 'error');
         }
     }
 
@@ -2981,6 +3109,90 @@ window.createBackup = async function() {
     } catch (error) {
         console.error('Error creating backup:', error);
         showAlert(`Backup failed: ${error.message}`, 'error');
+    }
+};
+
+// Create full backup function
+window.createFullBackup = async function() {
+    console.log('💾 createFullBackup button clicked');
+
+    // Show immediate feedback
+    const button = event?.target?.closest('button');
+    if (button) {
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+        button.disabled = true;
+
+        // Restore button after operation
+        setTimeout(() => {
+            button.innerHTML = originalHTML;
+            button.disabled = false;
+        }, 3000);
+    }
+
+    try {
+        const token = localStorage.getItem('adminToken');
+        if (!token) {
+            showAlert('Please login first', 'error');
+            return;
+        }
+
+        const response = await apiCall('/api/config/backup', {
+            method: 'POST'
+        });
+
+        showAlert('✅ Full backup created successfully!', 'success');
+
+        // Refresh backup list
+        if (typeof loadBackups === 'function') {
+            loadBackups();
+        }
+
+    } catch (error) {
+        console.error('❌ Error creating full backup:', error);
+        showAlert(`Failed to create backup: ${error.message}`, 'error');
+    }
+};
+
+// Create config-only backup function
+window.createConfigBackup = async function() {
+    console.log('⚙️ createConfigBackup button clicked');
+
+    // Show immediate feedback
+    const button = event?.target?.closest('button');
+    if (button) {
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+        button.disabled = true;
+
+        // Restore button after operation
+        setTimeout(() => {
+            button.innerHTML = originalHTML;
+            button.disabled = false;
+        }, 3000);
+    }
+
+    try {
+        const token = localStorage.getItem('adminToken');
+        if (!token) {
+            showAlert('Please login first', 'error');
+            return;
+        }
+
+        const response = await apiCall('/api/config/backup-config-only', {
+            method: 'POST'
+        });
+
+        showAlert('✅ Configuration backup created successfully!', 'success');
+
+        // Refresh backup list
+        if (typeof loadBackups === 'function') {
+            loadBackups();
+        }
+
+    } catch (error) {
+        console.error('❌ Error creating config backup:', error);
+        showAlert(`Failed to create config backup: ${error.message}`, 'error');
     }
 };
 
@@ -4750,4 +4962,258 @@ function showNotification(message, type = 'info') {
             notification.parentNode.removeChild(notification);
         }
     }, 5000);
+}
+
+// ===== CONTENT MANAGEMENT FUNCTIONS =====
+
+// Load content management data
+async function loadContentManagement() {
+    try {
+        showAlert('Loading content...', 'info');
+
+        const response = await apiCall('/api/content/admin/all');
+        const contents = response.data;
+
+        // Update content previews
+        contents.forEach(content => {
+            updateContentPreview(content.content_key, content);
+        });
+
+        clearAlert('contentAlert');
+        showAlert('Content loaded successfully!', 'success');
+    } catch (error) {
+        console.error('Error loading content:', error);
+        showAlert(`Failed to load content: ${error.message}`, 'error');
+    }
+}
+
+// Update content preview in the main interface
+function updateContentPreview(key, content) {
+    const previewElement = document.getElementById(`${key.replace('_', '')}Preview`);
+    const metaElement = document.getElementById(`${key.replace('_', '')}Meta`);
+
+    if (previewElement) {
+        // Truncate content for preview
+        const truncatedContent = content.content.length > 200
+            ? content.content.substring(0, 200) + '...'
+            : content.content;
+
+        previewElement.innerHTML = `<div>${truncatedContent}</div>`;
+        previewElement.classList.remove('loading');
+    }
+
+    if (metaElement) {
+        const updatedAt = new Date(content.updatedAt).toLocaleString();
+        const updatedBy = content.updatedBy ? ` by ${content.updatedBy.username}` : '';
+        metaElement.innerHTML = `<small class="text-muted">Last updated: ${updatedAt}${updatedBy} (v${content.version})</small>`;
+    }
+}
+
+// Edit content
+window.editContent = function(contentKey) {
+    showModal('contentEditModal');
+
+    // Set modal title
+    const titles = {
+        'about_anume': 'Edit About Anume',
+        'privacy_policy': 'Edit Privacy Policy'
+    };
+    document.getElementById('contentEditModalTitle').textContent = titles[contentKey] || 'Edit Content';
+
+    // Load current content
+    loadContentForEdit(contentKey);
+};
+
+// Load content for editing
+async function loadContentForEdit(contentKey) {
+    try {
+        const response = await apiCall(`/api/content/${contentKey}`);
+        const content = response.data;
+
+        // Populate form
+        document.getElementById('contentKey').value = contentKey;
+        document.getElementById('contentTitle').value = content.title;
+        document.getElementById('contentType').value = content.content_type;
+        document.getElementById('contentText').value = content.content;
+
+        // Update character count
+        updateCharacterCount();
+
+        // Update content type class
+        updateContentTypeClass(content.content_type);
+
+    } catch (error) {
+        console.error('Error loading content for edit:', error);
+        showAlert(`Failed to load content: ${error.message}`, 'error');
+    }
+}
+
+// Save content
+window.saveContent = async function() {
+    try {
+        const form = document.getElementById('contentEditForm');
+        const formData = new FormData(form);
+
+        const contentKey = formData.get('contentKey');
+        const title = formData.get('title').trim();
+        const content = formData.get('content').trim();
+        const contentType = formData.get('content_type');
+
+        // Validation
+        if (!title || !content) {
+            showAlert('Title and content are required!', 'error');
+            return;
+        }
+
+        if (title.length > 255) {
+            showAlert('Title must be 255 characters or less!', 'error');
+            return;
+        }
+
+        if (content.length > 50000) {
+            showAlert('Content must be 50,000 characters or less!', 'error');
+            return;
+        }
+
+        // Show enhanced confirmation dialog
+        const contentName = contentKey.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const confirmMessage = `⚠️ CONTENT UPDATE CONFIRMATION\n\n` +
+            `You are about to update "${contentName}" content.\n\n` +
+            `This action will:\n` +
+            `• Immediately update content in all connected mobile apps\n` +
+            `• Clear cached content on user devices\n` +
+            `• Cannot be undone\n\n` +
+            `Are you sure you want to proceed?`;
+
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+
+        showAlert('Saving content...', 'info');
+
+        const response = await apiCall(`/api/content/${contentKey}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                title: title,
+                content: content,
+                content_type: contentType
+            })
+        });
+
+        showAlert('Content saved successfully!', 'success');
+        closeModal('contentEditModal');
+
+        // Refresh content list
+        loadContentManagement();
+
+    } catch (error) {
+        console.error('Error saving content:', error);
+        showAlert(`Failed to save content: ${error.message}`, 'error');
+    }
+};
+
+// Preview content
+window.previewContent = function() {
+    const contentText = document.getElementById('contentText').value;
+    const contentType = document.getElementById('contentType').value;
+    const previewArea = document.getElementById('contentPreviewArea');
+
+    if (!contentText.trim()) {
+        previewArea.innerHTML = '<div class="text-muted">No content to preview...</div>';
+        return;
+    }
+
+    switch (contentType) {
+        case 'html':
+            previewArea.innerHTML = contentText;
+            previewArea.className = 'content-preview-box html-preview';
+            break;
+        case 'markdown':
+            // Simple markdown preview (basic implementation)
+            let htmlContent = contentText
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^\* (.*$)/gim, '<li>$1</li>')
+                .replace(/\n/g, '<br>');
+
+            previewArea.innerHTML = htmlContent;
+            previewArea.className = 'content-preview-box html-preview';
+            break;
+        default:
+            previewArea.textContent = contentText;
+            previewArea.className = 'content-preview-box';
+    }
+};
+
+// Update character count
+function updateCharacterCount() {
+    const contentText = document.getElementById('contentText');
+    const charCount = document.getElementById('contentCharCount');
+
+    if (contentText && charCount) {
+        const count = contentText.value.length;
+        charCount.textContent = count.toLocaleString();
+
+        // Change color based on character count
+        if (count > 45000) {
+            charCount.style.color = 'var(--error-color)';
+        } else if (count > 40000) {
+            charCount.style.color = 'var(--warning-color)';
+        } else {
+            charCount.style.color = 'var(--text-muted)';
+        }
+    }
+}
+
+// Update content type class
+function updateContentTypeClass(contentType) {
+    const form = document.getElementById('contentEditForm');
+    if (form) {
+        form.className = `content-type-${contentType}`;
+    }
+}
+
+// Refresh content list
+window.refreshContentList = function() {
+    loadContentManagement();
+};
+
+// Event listeners for content editing
+document.addEventListener('DOMContentLoaded', function() {
+    // Character count update
+    const contentText = document.getElementById('contentText');
+    if (contentText) {
+        contentText.addEventListener('input', updateCharacterCount);
+    }
+
+    // Content type change
+    const contentType = document.getElementById('contentType');
+    if (contentType) {
+        contentType.addEventListener('change', function() {
+            updateContentTypeClass(this.value);
+        });
+    }
+});
+
+// Listen for real-time content updates
+if (typeof socket !== 'undefined') {
+    socket.on('content-updated', function(data) {
+        console.log('Content updated:', data);
+
+        // Update preview if we're on the content tab
+        if (currentTab === 'content') {
+            updateContentPreview(data.key, {
+                content: data.content,
+                updatedAt: data.updated_at,
+                version: data.version,
+                updatedBy: { username: 'Admin' } // Simplified for real-time updates
+            });
+        }
+
+        // Show notification
+        showAlert(`Content "${data.key.replace('_', ' ')}" has been updated!`, 'info');
+    });
 }
