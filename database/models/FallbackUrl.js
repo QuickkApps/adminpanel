@@ -74,18 +74,8 @@ module.exports = (sequelize) => {
       },
     },
   }, {
-    tableName: 'fallback_urls',
-    indexes: [
-      {
-        fields: ['priority', 'is_active'],
-      },
-      {
-        fields: ['url_type', 'is_active'],
-      },
-      {
-        fields: ['last_test_status'],
-      },
-    ],
+    tableName: 'FallbackUrls',
+    // Remove indexes from model since they're created in migration
   });
 
   // Define associations

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Fallback URLs</title>
+</head>
+<body>
+    <h1>Debug Fallback URLs Frontend</h1>
+    <div id="debug-output"></div>
+    <button onclick="testFallbackUrls()">Test Fallback URLs</button>
+    
+    <script>
+        const BASE_URL = 'http://localhost:3003';
+        let authToken = null;
+        
+        function log(message) {
+            const output = document.getElementById('debug-output');
+            output.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+            console.log(message);
+        }
+        
+        async function login() {
+            try {
+                log('🔐 Logging in...');
+                const response = await fetch(`${BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    authToken = data.token;
+                    log('✅ Login successful');
+                    return true;
+                } else {
+                    log('❌ Login failed: ' + data.message);
+                    return false;
+                }
+            } catch (error) {
+                log('❌ Login error: ' + error.message);
+                return false;
+            }
+        }
+        
+        async function getFallbackUrls() {
+            try {
+                log('📋 Getting fallback URLs...');
+                const response = await fetch(`${BASE_URL}/api/fallback-urls`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                log('📋 Response status: ' + response.status);
+                log('📋 Response data: ' + JSON.stringify(data, null, 2));
+                
+                if (data.success) {
+                    log('✅ Found ' + data.count + ' fallback URLs');
+                    if (data.data && data.data.length > 0) {
+                        data.data.forEach((url, index) => {
+                            log(`   ${index + 1}. ${url.url} (${url.url_type}, priority: ${url.priority})`);
+                        });
+                    } else {
+                        log('   No URLs in data array');
+                    }
+                    return data.data;
+                } else {
+                    log('❌ API returned error: ' + data.message);
+                    return [];
+                }
+            } catch (error) {
+                log('❌ Error getting fallback URLs: ' + error.message);
+                return [];
+            }
+        }
+        
+        async function createTestUrl() {
+            try {
+                log('➕ Creating test fallback URL...');
+                const response = await fetch(`${BASE_URL}/api/fallback-urls`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: 'https://api.example.com/test-debug',
+                        url_type: 'api',
+                        description: 'Debug test URL',
+                        priority: 1
+                    })
+                });
+                
+                const data = await response.json();
+                log('➕ Create response: ' + JSON.stringify(data, null, 2));
+                
+                if (data.success) {
+                    log('✅ Created URL with ID: ' + data.data.id);
+                    return data.data;
+                } else {
+                    log('❌ Failed to create URL: ' + data.message);
+                    return null;
+                }
+            } catch (error) {
+                log('❌ Error creating URL: ' + error.message);
+                return null;
+            }
+        }
+        
+        async function testFallbackUrls() {
+            const output = document.getElementById('debug-output');
+            output.innerHTML = '';
+            
+            log('🚀 Starting fallback URL debug test...');
+            
+            // Step 1: Login
+            const loginSuccess = await login();
+            if (!loginSuccess) {
+                log('❌ Cannot continue without login');
+                return;
+            }
+            
+            // Step 2: Get existing URLs
+            let urls = await getFallbackUrls();
+            
+            // Step 3: If no URLs, create one
+            if (urls.length === 0) {
+                log('📝 No URLs found, creating test URL...');
+                const createdUrl = await createTestUrl();
+                if (createdUrl) {
+                    urls = await getFallbackUrls();
+                }
+            }
+            
+            // Step 4: Final check
+            if (urls.length > 0) {
+                log('🎉 Success! Found ' + urls.length + ' fallback URLs');
+                log('📋 URLs:');
+                urls.forEach((url, index) => {
+                    log(`   ${index + 1}. ${url.url} (${url.url_type}, active: ${url.is_active})`);
+                });
+            } else {
+                log('❌ Still no fallback URLs found');
+            }
+            
+            log('✅ Debug test completed');
+        }
+        
+        // Auto-run test on page load
+        window.addEventListener('load', () => {
+            setTimeout(testFallbackUrls, 1000);
+        });
+    </script>
+</body>
+</html>

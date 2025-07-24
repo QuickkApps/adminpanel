@@ -411,6 +411,37 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
+        // Initialize fallback URLs after chat initialization
+        if (typeof refreshFallbackUrls === 'function') {
+            console.log('🔄 Auto-initializing fallback URLs...');
+
+            // Check if admin token is available
+            const token = localStorage.getItem('adminToken');
+            if (token) {
+                console.log('✅ Admin token available, loading fallback URLs');
+                refreshFallbackUrls();
+            } else {
+                console.log('⏳ Admin token not yet available for fallback URLs, will retry...');
+                // Retry every 2 seconds until token is available
+                const fallbackTokenCheckInterval = setInterval(() => {
+                    const token = localStorage.getItem('adminToken');
+                    if (token) {
+                        console.log('✅ Admin token now available, loading fallback URLs');
+                        refreshFallbackUrls();
+                        clearInterval(fallbackTokenCheckInterval);
+                    }
+                }, 2000);
+
+                // Stop trying after 30 seconds
+                setTimeout(() => {
+                    clearInterval(fallbackTokenCheckInterval);
+                    console.log('⏰ Stopped waiting for admin token for fallback URLs');
+                }, 30000);
+            }
+        } else {
+            console.error('❌ refreshFallbackUrls function not found');
+        }
+
         // Add a manual test function to debug API calls
         window.testConversationsAPI = async function() {
             try {
@@ -3951,7 +3982,7 @@ function showChatNotification(message) {
     console.log('Chat Notification:', message);
 }
 
-// Add chat to the tab initialization
+// Add chat and configuration to the tab initialization
 const originalShowTab = window.showTab;
 window.showTab = function(tabName) {
     originalShowTab(tabName);
@@ -3973,6 +4004,25 @@ window.showTab = function(tabName) {
 
             // Also initialize chat features
             initializeChat();
+        }, 100);
+    } else if (tabName === 'configuration') {
+        console.log('🔄 Configuration tab selected, loading fallback URLs...');
+
+        // Check if admin token exists before loading
+        const token = localStorage.getItem('adminToken');
+        if (!token) {
+            console.error('❌ No admin token found when switching to configuration tab');
+            return;
+        }
+
+        // Load fallback URLs when configuration tab is clicked
+        setTimeout(() => {
+            console.log('🔄 Loading fallback URLs from showTab...');
+            if (typeof refreshFallbackUrls === 'function') {
+                refreshFallbackUrls();
+            } else {
+                console.error('❌ refreshFallbackUrls function not found');
+            }
         }, 100);
     }
 };
